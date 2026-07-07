@@ -1,0 +1,16 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+.DS_Store
+
+# fetched third-party data — catalog+fetch, never vendor (CLAUDE.md)
+data/
+
+# organizer PDFs — reference only, linked in LAUNCH_DAY_INFO.md, not shipped
+*.pdf
+
+# local secrets — never commit
+.env

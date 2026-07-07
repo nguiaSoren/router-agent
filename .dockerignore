@@ -1,0 +1,51 @@
+# Keep the build context (and image) lean — exclude anything not needed at runtime.
+
+# Python virtualenvs & caches
+.venv/
+**/.venv/
+__pycache__/
+**/__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.ruff_cache/
+**/.ruff_cache/
+.mypy_cache/
+
+# Version control & dev metadata
+.git/
+.gitignore
+.github/
+
+# Tests are not needed in the scored container (dev extra is excluded anyway)
+tests/
+
+# Data is fetched/catalogued, never baked into the image (see project conventions)
+data/
+**/*.parquet
+**/*.arrow
+
+# Docs / research / notebooks / build artifacts not needed at runtime
+docs/
+*.ipynb
+*.tar.gz
+dist/
+build/
+*.egg-info/
+
+# Parent tree artifacts
+../
+google/
+reuse/
+experiments/
+scripts/
+
+# Editor / OS cruft
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# The docker scaffold itself doesn't need to be inside the image
+docker/

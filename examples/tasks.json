@@ -1,0 +1,10 @@
+[
+  {"task_id": "t1", "prompt": "What is photosynthesis? Explain in two sentences."},
+  {"task_id": "t2", "prompt": "A shirt costs $40 after a 20% discount. What was the original price? Give just the number."},
+  {"task_id": "t3", "prompt": "Classify the sentiment as positive, negative, or neutral: 'This movie was a complete waste of my time.' Answer with one word."},
+  {"task_id": "t4", "prompt": "Summarize in one sentence: The city council approved a new bike-lane network on Tuesday, funded by a federal grant, aiming to cut downtown car traffic by 15% over three years."},
+  {"task_id": "t5", "prompt": "Extract every person, organization, and location name: 'Tim Cook announced in Cupertino that Apple will open a new campus in Austin next year.'"},
+  {"task_id": "t6", "prompt": "This function should add two numbers but has a bug. Fix it and return the corrected code:\ndef add(a, b):\n    return a - b"},
+  {"task_id": "t7", "prompt": "If all cats are mammals, and some mammals are black, can we conclude that some cats are black? Answer yes or no and explain in one sentence."},
+  {"task_id": "t8", "prompt": "Write a Python function is_palindrome(s) that returns True if s reads the same forwards and backwards, ignoring case and spaces."}
+]

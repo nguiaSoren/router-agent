@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>TokenGolf github card</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;600;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --canvas:#0A0E0D; --fg:#EAF2ED; --muted:#93A79C; --faint:#5A6D63;
+    --green:#3DF07A; --amber:#FFC233; --red:#FF5C77;
+    --display:'Archivo',ui-sans-serif,system-ui,sans-serif;
+    --mono:'JetBrains Mono',ui-monospace,monospace;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{background:#000}
+  .card{position:relative;width:1280px;height:640px;overflow:hidden;background:var(--canvas);
+    color:var(--fg);font-family:var(--display);isolation:isolate}
+  .card::before{content:"";position:absolute;inset:0;z-index:0;pointer-events:none;
+    background:radial-gradient(760px 520px at 50% 0%, rgba(61,240,122,.10), transparent 62%)}
+  .card::after{content:"";position:absolute;inset:0;z-index:0;pointer-events:none;
+    background:radial-gradient(1000px 720px at 50% 45%, transparent 62%, rgba(0,0,0,.5) 100%)}
+  .in{position:relative;z-index:2;height:100%;padding:78px 92px;display:flex;flex-direction:column;justify-content:center}
+  .tag{font-family:var(--mono);font-size:20px;letter-spacing:.16em;text-transform:uppercase;color:var(--green)}
+  .tag::before{content:"$ ";opacity:.6}
+  h1{font-weight:900;font-size:132px;line-height:.9;letter-spacing:-.045em;margin-top:18px}
+  h1 .g{color:var(--green)}
+  .sub{margin-top:26px;font-size:29px;color:var(--muted);max-width:1000px;line-height:1.34}
+  .sub b{color:var(--fg);font-weight:600}
+  .stat{margin-top:30px;font-family:var(--mono);font-size:23px;color:var(--muted)}
+  .stat .w{color:var(--green);font-weight:700} .stat .a{color:var(--amber);font-weight:700}
+  .foot{position:absolute;left:92px;bottom:52px;z-index:3;font-family:var(--mono);font-size:19px;color:var(--faint)}
+  .foot .c{color:var(--fg)}
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="in">
+    <svg viewBox="0 0 64 72" width="78" height="88" fill="none" style="display:block;margin-bottom:16px">
+      <ellipse cx="30" cy="54" rx="27" ry="8" stroke="rgba(61,240,122,.32)" stroke-width="1.5"/>
+      <ellipse cx="25" cy="53" rx="10" ry="3" fill="#05100B" stroke="rgba(61,240,122,.5)" stroke-width="1"/>
+      <rect x="23.7" y="10" width="2.1" height="43" rx="1.05" fill="#EAF2ED"/>
+      <circle cx="24.75" cy="10" r="1.8" fill="#EAF2ED"/>
+      <path d="M26 11 C 38 12 45 13.5 50 13.5 C 45 15.8 38 17 26 18.2 Z" fill="#3DF07A"/>
+      <circle cx="38" cy="50" r="4" fill="#EAF2ED"/>
+    </svg>
+    <div class="tag">AMD Developer Hackathon · Track 1</div>
+    <h1>Token<span class="g">Golf</span></h1>
+    <p class="sub">A calibrated, <b>token-efficient</b> routing agent. It turns off the Fireworks models' hidden reasoning, the dominant cost when you're ranked by tokens.</p>
+    <p class="stat">reasoning off &#8594; <span class="w">&minus;46% tokens</span> · <span class="a">.958 acc</span> · 8/8 categories · Docker amd64</p>
+  </div>
+  <div class="foot"><span class="c">$</span> Fireworks AI · llama.cpp · Python · one binary cascade, never a chain</div>
+</div>
+</body>
+</html>

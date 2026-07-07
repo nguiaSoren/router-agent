@@ -1,0 +1,34 @@
+[project]
+name = "router-agent"
+version = "0.0.1"
+description = "Hybrid token-efficient routing agent — a calibrated, abstaining local↔remote model cascade (AMD ACT II, Track 1)."
+readme = "README.md"
+requires-python = ">=3.11"
+# Core is pure stdlib on purpose (the calibration package + cascade logic are numpy-free).
+# Heavier deps are opt-in extras so the scored container stays lean.
+dependencies = []
+
+[project.optional-dependencies]
+# OpenAI-compatible client serves BOTH the local model (Ollama @ localhost:11434/v1)
+# and every remote provider (Fireworks / OpenAI / OpenRouter / aimlapi / Featherless) via base_url swap.
+serving = ["openai>=1.40"]
+# Dev task sets (GSM8K + short-QA) and the RouterBench $0 dry-run.
+data = ["datasets>=2.0", "pandas>=2.0", "pyarrow>=14", "huggingface-hub>=0.20"]
+# Local free tier: a small GGUF run on CPU via llama.cpp (the judging VM is CPU/amd64).
+local = ["llama-cpp-python>=0.3", "huggingface-hub>=0.20"]
+dev = ["pytest>=8.0", "ruff>=0.6"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/router_agent"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src", "."]  # "." → the experiments/ package is importable in tests
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 110
+src = ["src"]

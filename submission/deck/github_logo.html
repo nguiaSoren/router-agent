@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>TokenGolf logo</title>
+<style>
+  :root{--canvas:#0A0E0D; --green:#3DF07A; --fg:#EAF2ED; --amber:#FFC233; --hole:#05100B;}
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{background:#000}
+  .logo{position:relative;width:512px;height:512px;overflow:hidden;background:var(--canvas);isolation:isolate}
+  .logo::before{content:"";position:absolute;inset:0;z-index:0;pointer-events:none;
+    background:radial-gradient(420px 340px at 50% 2%, rgba(61,240,122,.14), transparent 62%)}
+  .logo::after{content:"";position:absolute;inset:0;z-index:0;pointer-events:none;
+    background:radial-gradient(560px 420px at 50% 46%, transparent 60%, rgba(0,0,0,.5) 100%)}
+  svg{position:relative;z-index:2;display:block}
+</style>
+</head>
+<body>
+<div class="logo">
+  <svg width="512" height="512" viewBox="0 0 512 512" fill="none">
+    <!-- putting-green rim under the hole -->
+    <ellipse cx="256" cy="392" rx="150" ry="40" stroke="rgba(61,240,122,.22)" stroke-width="3"/>
+    <!-- hole -->
+    <ellipse cx="230" cy="388" rx="52" ry="15" fill="#05100B" stroke="rgba(61,240,122,.35)" stroke-width="2.5"/>
+    <!-- flag pole (white, echoes "Token") -->
+    <rect x="223" y="120" width="13" height="270" rx="6.5" fill="#EAF2ED"/>
+    <circle cx="229.5" cy="120" r="9" fill="#EAF2ED"/>
+    <!-- pennant (green, echoes "Golf") -->
+    <path d="M236 128 C 320 138, 372 150, 404 150 C 372 176, 320 188, 236 196 Z" fill="#3DF07A"/>
+    <!-- golf ball / token -->
+    <circle cx="330" cy="378" r="21" fill="#EAF2ED"/>
+    <circle cx="330" cy="378" r="21" stroke="rgba(0,0,0,.18)" stroke-width="2"/>
+    <circle cx="323" cy="372" r="3" fill="rgba(10,14,13,.18)"/>
+    <circle cx="336" cy="380" r="2.5" fill="rgba(10,14,13,.14)"/>
+    <circle cx="330" cy="388" r="2.5" fill="rgba(10,14,13,.14)"/>
+  </svg>
+</div>
+</body>
+</html>

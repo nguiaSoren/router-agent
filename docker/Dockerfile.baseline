@@ -1,0 +1,38 @@
+# syntax=docker/dockerfile:1
+#
+# router-agent — LEAN Fireworks-only submission image (Track 1).
+# =============================================================
+# No local model: the CPU-3B tier was measured marginal (~6% safe coverage, latency-risky under
+# the 30s/10min limits), so the submission routes every task to ONE Fireworks model with concise,
+# output-capped prompts — small (~200MB), fast 60s startup, robust. Model chosen by NAME via
+# ROUTER_FW_MODEL (robust to ALLOWED_MODELS ordering). A/B minimax vs kimi by rebuilding with a
+# different ROUTER_FW_MODEL. The local-cascade Dockerfile remains for the explored option.
+#
+# Build (judging VM is amd64):
+#   docker buildx build --platform linux/amd64 -f docker/Dockerfile.baseline -t <reg>/router-agent:latest --push .
+FROM --platform=linux/amd64 python:3.11-slim
+
+ENV PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+WORKDIR /app
+COPY pyproject.toml README.md ./
+COPY src ./src
+RUN pip install ".[serving]"
+
+# Fireworks-only, concise, one model chosen by NAME. A/B by build-arg without editing:
+#   :latest → --build-arg FW_MODEL=minimax-m3   (safe floor)
+#   :kimi   → --build-arg FW_MODEL=kimi          (measured best with reasoning off)
+# Reasoning is disabled by CODE default (run.build_tiers → reasoning_effort="none") — the Fireworks
+# models are reasoning models whose hidden reasoning was ~46% of scored tokens. Set env
+# ROUTER_REASONING_EFFORT="" to restore full reasoning for an A/B.
+ARG FW_MODEL=minimax-m3
+ENV ROUTER_NO_LOCAL=1 \
+    ROUTER_FW_MODEL=${FW_MODEL}
+
+RUN useradd --create-home --uid 1001 runner \
+    && mkdir -p /input /output && chown -R runner:runner /app /input /output
+USER runner
+
+ENTRYPOINT ["python", "-m", "router_agent.run", "submit"]
