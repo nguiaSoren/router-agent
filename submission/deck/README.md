@@ -1,6 +1,6 @@
 # TokenGolf deck + brand assets
 
-8-slide Track-1 pitch (terminal scoreboard aesthetic, 16:9) plus GitHub brand assets.
+9-slide Track-1 pitch (terminal scoreboard aesthetic, 16:9) plus GitHub brand assets.
 
 | file | size / ratio | use |
 |---|---|---|

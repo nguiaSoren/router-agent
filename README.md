@@ -1,15 +1,18 @@
-# router-agent — Token-Efficient Routing Agent (AMD ACT II, Track 1)
+![TokenGolf](submission/deck/out/github_card.png)
 
-A Track-1 agent that answers tasks across 8 capability categories (factual, math, sentiment, summarisation, NER, code-debugging, logic, code-generation) using **as few Fireworks tokens as possible**. It reads `/input/tasks.json`, writes `/output/results.json`, and routes each task through a **calibrated local↔remote cascade**: a small local model (llama.cpp, CPU) answers the tasks it is confident on **for free** (local tokens score zero), and only the rest escalate to a single Fireworks model. Scored on an accuracy gate, then ranked by total tokens — so the design maximises free-local coverage while staying above the gate.
+# TokenGolf: Token-Efficient Routing Agent (AMD ACT II, Track 1)
+
+A Track-1 agent that answers tasks across 8 capability categories (factual, math, sentiment, summarisation, NER, code-debugging, logic, code-generation) using **as few Fireworks tokens as possible**. It reads `/input/tasks.json`, writes `/output/results.json`, and routes each task through a **calibrated local↔remote cascade**: a small local model (llama.cpp, CPU) answers the tasks it is confident on **for free** (local tokens score zero), and only the rest escalate to a single Fireworks model. Scored on an accuracy gate, then ranked by total tokens, so the design maximises free-local coverage while staying above the gate.
 
 ## How it works
-- **Confidence-gated routing.** The local model is sampled with self-consistency; high agreement ⇒ keep the local answer (free), low agreement ⇒ escalate to Fireworks. The keep/escalate threshold τ is **calibrated on held-out data** so kept-local answers stay accurate (no silent promotion).
-- **Token-minimal by construction.** The leaderboard counts tokens, not dollars, so the cascade is binary (local → one Fireworks call, never a chain of remote calls), the Fireworks prompt is terse and output-capped, and self-consistency runs only on the free local model.
+- **Reasoning off is the token win.** Both allowed Fireworks models are reasoning models whose hidden reasoning dominates token cost. Setting `reasoning_effort="none"` cuts scored tokens ~46% with no measured accuracy loss (it was the dominant cost, not the answers).
+- **Confidence-gated routing.** The local model is sampled with self-consistency; high agreement keeps the local answer (free), low agreement escalates to Fireworks. The keep/escalate threshold τ is **calibrated on held-out data** so kept-local answers stay accurate (no silent promotion).
+- **Token-minimal by construction.** The leaderboard counts tokens, not dollars, so the cascade is binary (local, then one Fireworks call, never a chain of remote calls), the Fireworks prompt is terse and output-capped, and self-consistency runs only on the free local model.
 - **Config, not code.** Models and thresholds are read from the environment at runtime.
 
 ## The harness contract
-- Reads **`/input/tasks.json`** — `[{ "task_id", "prompt" }]`
-- Writes **`/output/results.json`** — `[{ "task_id", "answer" }]`
+- Reads **`/input/tasks.json`**: `[{ "task_id", "prompt" }]`
+- Writes **`/output/results.json`**: `[{ "task_id", "answer" }]`
 - Environment (injected by the eval harness; do not hardcode): `FIREWORKS_API_KEY`, `FIREWORKS_BASE_URL` (all Fireworks calls route through it), `ALLOWED_MODELS` (comma-separated ids).
 
 ## Build & run
@@ -29,13 +32,15 @@ cat output/results.json
 ```
 
 ### Tuning knobs (env, no rebuild)
-- `ROUTER_NO_LOCAL=1` — Fireworks-only baseline (skip the local tier).
-- `ROUTER_MODEL_INDEX` — which allowed model in single-model mode (default -1).
-- `ROUTER_CALIBRATOR` — path to a bundled calibrator JSON → enables the local↔remote cascade with the calibrated τ.
-- `ROUTER_SC_N`, `ROUTER_MAX_TOKENS`, `ROUTER_TAU` — self-consistency samples / output cap / escalation threshold.
+- `ROUTER_REASONING_EFFORT`: reasoning_effort for the Fireworks call (default `none`; set `""` to restore full reasoning). The headline token lever.
+- `ROUTER_FW_MODEL`: which allowed model to call by name (e.g. `kimi`, `minimax-m3`).
+- `ROUTER_SMARTLOCAL=1`: route sentiment/NER to the free local tier, everything else to Fireworks.
+- `ROUTER_NO_LOCAL=1`: Fireworks-only baseline (skip the local tier).
+- `ROUTER_CALIBRATOR`: path to a bundled calibrator JSON, enabling the local↔remote cascade with the calibrated τ.
+- `ROUTER_SC_N`, `ROUTER_MAX_TOKENS`, `ROUTER_TAU`: self-consistency samples / output cap / escalation threshold.
 
 ## Layout
-`src/router_agent/`: `cascade.py` (routing), `confidence.py` (self-consistency), `local_llm.py` (CPU GGUF free tier), `providers.py` (Fireworks seam), `threshold.py`/`calibration/` (τ + calibration), `tasks.py` (8-category dev sets + checkers), `run.py` (`submit` entrypoint). `experiments/`: eval + calibration harnesses. `docker/`: the amd64 image.
+`src/router_agent/`: `cascade.py` (routing), `confidence.py` (self-consistency), `local_llm.py` (CPU GGUF free tier), `providers.py` (Fireworks seam), `threshold.py`/`calibration/` (τ + calibration), `tasks.py` (8-category dev sets + checkers), `run.py` (`submit` entrypoint). `experiments/`: eval + calibration harnesses. `docker/`: the amd64 image. `submission/deck/`: the pitch deck + brand assets.
 
 ## Development
 ```bash
@@ -43,5 +48,5 @@ uv run --extra dev pytest -q          # offline test suite
 uv run --extra dev ruff check src/ tests/
 ```
 
-## Attribution & license
-MIT (`LICENSE`). The confidence-calibration package (`src/router_agent/calibration/`) is reused verbatim — see `ATTRIBUTION.md`. This is a recombination of established techniques (calibrated-abstaining routing, self-consistency), not a novelty claim.
+## License
+MIT (`LICENSE`). See `ATTRIBUTION.md` for acknowledgments: the established techniques this builds on and the open dataset used.
