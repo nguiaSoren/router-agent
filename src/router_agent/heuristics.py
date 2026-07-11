@@ -42,6 +42,7 @@ __all__ = [
     "solve_math",
     "looks_like_code_eval",
     "solve_code",
+    "run_python",
 ]
 
 
@@ -486,15 +487,28 @@ _RE_PCT = re.compile(r"([\d.]+)\s*(?:%|percent)\s+of\s+([\d.]+)", re.IGNORECASE)
 _RE_EXPR = re.compile(r"\d+(?:\.\d+)?(?:\s*[-+*/]\s*\d+(?:\.\d+)?)+")
 
 
-def looks_like_math(prompt: str) -> bool:
-    """Cheap predicate: does ``prompt`` look like a compute/arithmetic task? (routing signal)
+# word-problem cues (numbers + these ⇒ a math *word problem*, not just bare arithmetic)
+_RE_MATH_WORD = re.compile(
+    r"\b(how many|how much|how old|how far|how fast|how long|total|altogether|in all|combined|"
+    r"remaining|left over|are left|has left|each|per\b|average|the difference|twice|three times|"
+    r"half of|double|discount|percent|dozen|apiece|split|share)\b",
+    re.IGNORECASE,
+)
 
-    True when it contains a digit AND either a compute cue word or a bare ``a<op>b`` pattern.
-    Deterministic, case‑insensitive. Crude by design — it only *routes*; :func:`solve_math`
-    decides whether the task is actually solvable for free."""
+
+def looks_like_math(prompt: str) -> bool:
+    """Cheap predicate: does ``prompt`` look like a math task (arithmetic OR word problem)?
+
+    True when it contains a digit AND (a compute cue, a bare ``a<op>b`` pattern, or a word‑problem
+    cue like "how many"/"total"/"per"). Deterministic, case‑insensitive. Routes only — `solve_math`
+    (exact arithmetic) and the model‑writes‑Python path decide what's actually free."""
     if not prompt or not re.search(r"\d", prompt):
         return False
-    return bool(_RE_MATH_CUE.search(prompt)) or bool(re.search(r"\d\s*[-+*/×÷]\s*\d", prompt))
+    return (
+        bool(_RE_MATH_CUE.search(prompt))
+        or bool(re.search(r"\d\s*[-+*/×÷]\s*\d", prompt))
+        or bool(_RE_MATH_WORD.search(prompt))
+    )
 
 
 def _safe_arith(expr: str):
@@ -680,3 +694,14 @@ def solve_code(prompt: str) -> str | None:
     if not code:
         return None
     return _run_sandboxed(code)
+
+
+def run_python(code: str, timeout: int = 3) -> str | None:
+    """Execute a Python snippet in the locked sandbox → its printed output / last-expr value, or None.
+
+    Public entry for the **model-writes-Python** math path (`run.py`): the local model translates a
+    word problem into a short program, and this runs it through the *same* AST-locked, timeout-bounded
+    sandbox as :func:`solve_code` (imports / dunders / dangerous builtins rejected)."""
+    if not code:
+        return None
+    return _run_sandboxed(code, timeout=timeout)

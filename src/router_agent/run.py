@@ -25,7 +25,9 @@ import argparse
 import dataclasses
 import json
 import os
+import re
 import sys
+import time
 from functools import partial
 from typing import Callable
 
@@ -57,6 +59,34 @@ _LOCAL_NER_SYSTEM = (
     "Reply with only the names, comma-separated. No labels, no preamble, no other text."
 )  # NOTE: no in-prompt example — the small 3B parrots examples verbatim (measured: it emitted the
 # example's 'Paris'/'Tim Cook' as phantom entities). "copy verbatim, never invent" kills the hallucination.
+_LOCAL_MATH_SYSTEM = (
+    "Solve the math problem by writing a short Python program that computes the numeric answer and "
+    "prints ONLY that number, e.g. `print(42)`. Use plain arithmetic (+ - * / // % ** and int/float). "
+    "No explanation, no units, no code fence — output only the program."
+)
+
+
+def math_via_python(prompt: str, local_tier, n: int = 2) -> str | None:
+    """$0 math for a word problem: the LOCAL model translates it to Python, we execute it in the
+    sandbox, and require **agreement across n samples** (else abstain → escalate to Fireworks).
+
+    Exact arithmetic (the sandbox computes it); the only variable is the model's translation, and the
+    agreement gate self-selects the problems it understands stably. Zero scored tokens: local
+    inference + local execution. Returns the numeric string, or None to escalate."""
+    from . import heuristics
+    results: list[str] = []
+    for _ in range(n):
+        code = local_tier.call(_LOCAL_MATH_SYSTEM, prompt).text.strip()
+        m = re.search(r"```(?:python|py)?\s*(.*?)```", code, re.S)
+        if m:
+            code = m.group(1).strip()
+        val = heuristics.run_python(code)
+        if val is None:
+            return None                      # a run errored / unsafe → not confident → escalate
+        results.append(val.strip())
+    if results and results[0] != "" and all(r == results[0] for r in results):
+        return results[0]
+    return None                              # samples disagreed → escalate
 
 
 # ----------------------------------------------------------------- tier / signal wiring
@@ -286,10 +316,16 @@ def read_input_tasks(path: str) -> list[Task]:
 
 
 def write_output_results(path: str, answers: list[dict]) -> None:
-    """Write the harness `/output/results.json` — a JSON array of {task_id, answer}."""
+    """Write the harness `/output/results.json` **atomically** (temp file + os.replace).
+
+    Called incrementally after every task in submit mode, so `/output/results.json` is always a
+    complete, valid file — a mid-run crash or the 10-minute cap can never leave a truncated/partial
+    write, and every task_id is already present (pre-filled skeleton)."""
     os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
-    with open(path, "w", encoding="utf-8") as fh:
+    tmp = path + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as fh:
         json.dump(answers, fh, ensure_ascii=False)
+    os.replace(tmp, path)
 
 
 def cmd_submit(args: argparse.Namespace, config: CascadeConfig | None = None) -> dict:
@@ -320,43 +356,51 @@ def cmd_submit(args: argparse.Namespace, config: CascadeConfig | None = None) ->
         fw_tier = next((t for t in tiers if not t.is_local), tiers[-1])
         if local_tier is None:
             raise SystemExit("ROUTER_SMARTLOCAL needs a local tier — don't set ROUTER_NO_LOCAL")
+        # Robustness: pre-fill a COMPLETE skeleton and write it, then fill answers in incrementally
+        # (atomic). results.json is valid + complete at all times — a crash or the 10-min cap yields
+        # partial credit, never zero. A time watchdog stops using the slow local 3B near the budget
+        # and routes the rest to the fast Fireworks path so the run finishes inside the cap.
+        answers = [{"task_id": t.id, "answer": ""} for t in tasks]
+        write_output_results(args.output, answers)
+        t0 = time.monotonic()
+        budget = float(os.environ.get("ROUTER_TIME_BUDGET", "540"))   # 9 min (hard harness cap is 10)
+        local_cutoff = budget * 0.85
         remote_calls = 0
-        for t in tasks:
-            # $0 deterministic arithmetic first (exact when it fires, else abstains → escalate)
-            math_ans = heuristics.solve_math(t.prompt) if heuristics.looks_like_math(t.prompt) else None
-            if math_ans is not None:
-                answers.append({"task_id": t.id, "answer": math_ans})
-                local_answered += 1
-                continue
-            # $0 sandboxed execution for "evaluate/output of this code" tasks (exact-or-abstain)
-            code_ans = heuristics.solve_code(t.prompt)
-            if code_ans is not None:
-                answers.append({"task_id": t.id, "answer": code_ans})
-                local_answered += 1
-                continue
-            is_sent = heuristics.looks_like_sentiment(t.prompt)
-            is_ner = heuristics.looks_like_ner(t.prompt)
-            use_local = is_sent or is_ner
-            if use_local:
-                # single-format prompt so the small local model emits a clean, gate-safe answer
-                local_sys = _LOCAL_SENTIMENT_SYSTEM if is_sent else _LOCAL_NER_SYSTEM
-                reply = local_tier.call(local_sys, t.prompt)
-            else:
+        for i, t in enumerate(tasks):
+            allow_local = (time.monotonic() - t0) < local_cutoff       # near budget → skip slow local
+            ans = None
+            # $0 math: exact arithmetic; then (if enabled + time allows) local-model-writes-Python
+            if heuristics.looks_like_math(t.prompt):
+                ans = heuristics.solve_math(t.prompt)
+                if ans is None and allow_local and os.environ.get("ROUTER_MATH_PY"):
+                    ans = math_via_python(t.prompt, local_tier)
+            # $0 sandboxed code-eval (instant, exact-or-abstain)
+            if ans is None:
+                ans = heuristics.solve_code(t.prompt)
+            # sentiment / NER → free local model (single-format prompt), only while time allows
+            if ans is None and allow_local:
+                if heuristics.looks_like_sentiment(t.prompt):
+                    ans = local_tier.call(_LOCAL_SENTIMENT_SYSTEM, t.prompt).text
+                elif heuristics.looks_like_ner(t.prompt):
+                    ans = local_tier.call(_LOCAL_NER_SYSTEM, t.prompt).text
+            # everything else (and the near-budget fallback) → one Fireworks call
+            if ans is None:
                 reply = fw_tier.call(_SUBMIT_SYSTEM, t.prompt)
+                ans = reply.text
                 remote_calls += 1
-            answers.append({"task_id": t.id, "answer": reply.text})
-            if use_local:
-                local_answered += 1                       # local tokens are free (0 scored)
-            else:
                 scored_tokens += reply.in_tok + reply.out_tok
-        # A zero-Fireworks-call run is disqualified. If everything was answered for free
-        # (all math/sentiment/NER), spend ONE cheap Fireworks call on the last task to stay valid.
+            else:
+                local_answered += 1                        # local/deterministic tokens are free
+            answers[i]["answer"] = ans
+            write_output_results(args.output, answers)     # incremental atomic write
+        # A zero-Fireworks-call run is disqualified — if everything was answered free, spend one call.
         if remote_calls == 0 and tasks:
             reply = fw_tier.call(_SUBMIT_SYSTEM, tasks[-1].prompt)
-            answers[-1] = {"task_id": tasks[-1].id, "answer": reply.text}
+            answers[-1]["answer"] = reply.text
             scored_tokens += reply.in_tok + reply.out_tok
             local_answered -= 1
-        mode = "smartlocal (math+code→$0 solver, sentiment+NER→local, else Fireworks)"
+            write_output_results(args.output, answers)
+        mode = "smartlocal (math+code→$0 solver, sentiment+NER→local, time-watchdog, else Fireworks)"
     elif cal_path and os.path.exists(cal_path):
         fns = build_confidence_fns(config, tiers)
         calibrator, tau = load_calibrator(cal_path)

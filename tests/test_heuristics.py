@@ -196,3 +196,18 @@ def test_looks_like_code_eval():
     assert looks_like_code_eval("What is the output of this code: print(1)") is True
     assert looks_like_code_eval("Evaluate: 2+2") is True
     assert looks_like_code_eval("Write a function to sort a list.") is False
+
+
+# --- run_python (sandbox entry for the model-writes-Python path) ----------------
+from router_agent.heuristics import run_python  # noqa: E402
+
+
+def test_run_python_and_math_word_detection():
+    assert run_python("print(2**8)") == "256"
+    assert run_python("40 * 2") == "80"
+    assert run_python("import os") is None          # blocked
+    assert run_python("") is None
+    # broadened math detection catches word problems (numbers + cue), not plain factual
+    assert looks_like_math("How many apples are left if I start with 10 and eat 3?") is True
+    assert looks_like_math("A car travels 90 km in 2 hours; what is the average speed?") is True
+    assert looks_like_math("What is the capital of France?") is False
