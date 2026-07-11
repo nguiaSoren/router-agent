@@ -328,107 +328,144 @@ def write_output_results(path: str, answers: list[dict]) -> None:
     os.replace(tmp, path)
 
 
+def _guarded_call(tier, system: str, user: str, retries: int = 2):
+    """Call a tier, retrying transient failures; return the Reply or None — **never raises**.
+
+    The scored container must not crash on a bad/slow API response (that's a RUNTIME_ERROR = zero).
+    Each call gets a couple of attempts; if all fail we return None and the caller keeps the task's
+    skeleton answer, so the run continues and still emits a complete results.json."""
+    for attempt in range(max(1, retries)):
+        try:
+            return tier.call(system, user)
+        except Exception as exc:  # noqa: BLE001 — resilience is the whole point here
+            if attempt == retries - 1:
+                print(f"submit: call failed after {retries} tries: {exc}", file=sys.stderr)
+    return None
+
+
 def cmd_submit(args: argparse.Namespace, config: CascadeConfig | None = None) -> dict:
     """The container entrypoint: read /input/tasks.json → answer each → write /output/results.json.
 
-    Config comes from the harness env (ALLOWED_MODELS / FIREWORKS_BASE_URL / FIREWORKS_API_KEY).
-    If a calibrator is bundled (ROUTER_CALIBRATOR / --calibrator) → full cascade (cheap tier kept
-    when confident, escalate otherwise). Otherwise a single-model pass (ROUTER_MODEL_INDEX, default
-    -1 = the strongest allowed model = accuracy-safe) — a valid baseline to iterate down from."""
+    Bulletproof by construction (a crash = RUNTIME_ERROR = zero score): a COMPLETE skeleton is written
+    first, every task and every API call is guarded, setup errors are caught, results.json is rewritten
+    atomically after each task, and the process always exits 0 with a valid, complete file. Worst case
+    (total failure) still yields a schema-valid results.json — partial credit, never a crash.
+
+    Modes: ROUTER_SMARTLOCAL (the token-optimal $0-tiers cascade), a bundled calibrator (confidence
+    cascade), or a single Fireworks model (ROUTER_FW_MODEL / ROUTER_MODEL_INDEX = the safe baseline)."""
     from .cascade import route
 
-    # default = the binary local↔Fireworks cascade (token-optimal); ROUTER_NO_LOCAL=1 → Fireworks-only baseline
-    if config is None:
-        config = scoring_config_from_env() if os.environ.get("ROUTER_NO_LOCAL") else submission_config_from_env()
-    tracker = CostTracker(config.budget_ceiling_usd)
-    tiers = build_tiers(config, tracker)
-    tasks = read_input_tasks(args.input)
+    # 1) read tasks defensively — even an unreadable /input still exits 0 with a valid (empty) file
+    try:
+        tasks = read_input_tasks(args.input)
+    except Exception as exc:  # noqa: BLE001
+        print(f"submit: could not read {args.input}: {exc}", file=sys.stderr)
+        write_output_results(args.output, [])
+        return {"n": 0, "mode": "input-error", "scored_tokens": 0, "local_answered": 0}
 
-    cal_path = args.calibrator or os.environ.get("ROUTER_CALIBRATOR")
-    answers: list[dict] = []
+    # 2) pre-fill a COMPLETE skeleton and write it NOW → results.json is valid + complete from here on,
+    #    so any later crash/timeout still yields a scorable file (partial credit, never zero).
+    answers: list[dict] = [{"task_id": t.id, "answer": ""} for t in tasks]
+    try:
+        write_output_results(args.output, answers)
+    except Exception:  # noqa: BLE001, S110
+        pass
+
     scored_tokens = 0            # the leaderboard metric: total REMOTE (Fireworks) tokens
     local_answered = 0
-    if os.environ.get("ROUTER_SMARTLOCAL"):
-        # Category-gated: sentiment/NER prompts → FREE local (bench: Qwen owns them 1.00/0.88);
-        # everything else → one Fireworks call. Detection is by prompt keywords (heuristics).
-        from . import heuristics
-        local_tier = next((t for t in tiers if t.is_local), None)
-        fw_tier = next((t for t in tiers if not t.is_local), tiers[-1])
-        if local_tier is None:
-            raise SystemExit("ROUTER_SMARTLOCAL needs a local tier — don't set ROUTER_NO_LOCAL")
-        # Robustness: pre-fill a COMPLETE skeleton and write it, then fill answers in incrementally
-        # (atomic). results.json is valid + complete at all times — a crash or the 10-min cap yields
-        # partial credit, never zero. A time watchdog stops using the slow local 3B near the budget
-        # and routes the rest to the fast Fireworks path so the run finishes inside the cap.
-        answers = [{"task_id": t.id, "answer": ""} for t in tasks]
-        write_output_results(args.output, answers)
-        t0 = time.monotonic()
-        budget = float(os.environ.get("ROUTER_TIME_BUDGET", "540"))   # 9 min (hard harness cap is 10)
-        local_cutoff = budget * 0.85
-        remote_calls = 0
-        for i, t in enumerate(tasks):
-            allow_local = (time.monotonic() - t0) < local_cutoff       # near budget → skip slow local
-            ans = None
-            # $0 math: exact arithmetic; then (if enabled + time allows) local-model-writes-Python
-            if heuristics.looks_like_math(t.prompt):
-                ans = heuristics.solve_math(t.prompt)
-                if ans is None and allow_local and os.environ.get("ROUTER_MATH_PY"):
-                    ans = math_via_python(t.prompt, local_tier)
-            # $0 sandboxed code-eval (instant, exact-or-abstain)
-            if ans is None:
-                ans = heuristics.solve_code(t.prompt)
-            # sentiment / NER → free local model (single-format prompt), only while time allows
-            if ans is None and allow_local:
-                if heuristics.looks_like_sentiment(t.prompt):
-                    ans = local_tier.call(_LOCAL_SENTIMENT_SYSTEM, t.prompt).text
-                elif heuristics.looks_like_ner(t.prompt):
-                    ans = local_tier.call(_LOCAL_NER_SYSTEM, t.prompt).text
-            # everything else (and the near-budget fallback) → one Fireworks call
-            if ans is None:
-                reply = fw_tier.call(_SUBMIT_SYSTEM, t.prompt)
-                ans = reply.text
-                remote_calls += 1
-                scored_tokens += reply.in_tok + reply.out_tok
-            else:
-                local_answered += 1                        # local/deterministic tokens are free
-            answers[i]["answer"] = ans
-            write_output_results(args.output, answers)     # incremental atomic write
-        # A zero-Fireworks-call run is disqualified — if everything was answered free, spend one call.
-        if remote_calls == 0 and tasks:
-            reply = fw_tier.call(_SUBMIT_SYSTEM, tasks[-1].prompt)
-            answers[-1]["answer"] = reply.text
-            scored_tokens += reply.in_tok + reply.out_tok
-            local_answered -= 1
-            write_output_results(args.output, answers)
-        mode = "smartlocal (math+code→$0 solver, sentiment+NER→local, time-watchdog, else Fireworks)"
-    elif cal_path and os.path.exists(cal_path):
-        fns = build_confidence_fns(config, tiers)
-        calibrator, tau = load_calibrator(cal_path)
-        tiers[0] = dataclasses.replace(tiers[0], threshold=tau)
-        cals = {tiers[0].name: calibrator}
-        for t in tasks:
-            r = route(t, tiers, fns, calibrators=cals)
-            answers.append({"task_id": t.id, "answer": r.answer})
-            scored_tokens += r.scored_tokens          # remote-only (local is free)
-            local_answered += 0 if r.used_remote else 1
-        mode = f"cascade (calibrator={cal_path})"
-    else:
-        # Select the model by NAME (robust to however the harness orders ALLOWED_MODELS); fall back
-        # to positional index. ROUTER_FW_MODEL is a substring, e.g. "minimax-m3" / "kimi".
-        pref = os.environ.get("ROUTER_FW_MODEL", "").strip()
-        tier = next((t for t in tiers if pref and pref in t.name), None)
-        if tier is None:
-            tier = tiers[int(os.environ.get("ROUTER_MODEL_INDEX", "-1"))]
-        for t in tasks:
-            reply = tier.call(_SUBMIT_SYSTEM, t.prompt)
-            answers.append({"task_id": t.id, "answer": reply.text})
-            scored_tokens += reply.in_tok + reply.out_tok
-        mode = f"single-model={tier.name}"
+    mode = "unknown"
+    # 3) route — top-level guard for setup errors; each task guarded so one failure never aborts the run
+    try:
+        if config is None:
+            config = scoring_config_from_env() if os.environ.get("ROUTER_NO_LOCAL") else submission_config_from_env()
+        tracker = CostTracker(config.budget_ceiling_usd)
+        tiers = build_tiers(config, tracker)
+        cal_path = args.calibrator or os.environ.get("ROUTER_CALIBRATOR")
 
-    write_output_results(args.output, answers)
+        if os.environ.get("ROUTER_SMARTLOCAL"):
+            # $0 tiers (math/code deterministic, sentiment/NER local) → one Fireworks call; time watchdog.
+            from . import heuristics
+            local_tier = next((t for t in tiers if t.is_local), None)
+            fw_tier = next((t for t in tiers if not t.is_local), tiers[-1])
+            t0 = time.monotonic()
+            budget = float(os.environ.get("ROUTER_TIME_BUDGET", "540"))   # 9 min (hard harness cap is 10)
+            local_cutoff = budget * 0.85
+            remote_calls = 0
+            for i, t in enumerate(tasks):
+                try:
+                    allow_local = local_tier is not None and (time.monotonic() - t0) < local_cutoff
+                    ans = None
+                    if heuristics.looks_like_math(t.prompt):
+                        ans = heuristics.solve_math(t.prompt)
+                        if ans is None and allow_local and os.environ.get("ROUTER_MATH_PY"):
+                            ans = math_via_python(t.prompt, local_tier)
+                    if ans is None:
+                        ans = heuristics.solve_code(t.prompt)
+                    if ans is None and allow_local:
+                        if heuristics.looks_like_sentiment(t.prompt):
+                            r = _guarded_call(local_tier, _LOCAL_SENTIMENT_SYSTEM, t.prompt)
+                            ans = r.text if r else None
+                        elif heuristics.looks_like_ner(t.prompt):
+                            r = _guarded_call(local_tier, _LOCAL_NER_SYSTEM, t.prompt)
+                            ans = r.text if r else None
+                    if ans is None:                                 # else / fallback → Fireworks
+                        reply = _guarded_call(fw_tier, _SUBMIT_SYSTEM, t.prompt)
+                        if reply is not None:
+                            ans = reply.text
+                            remote_calls += 1
+                            scored_tokens += reply.in_tok + reply.out_tok
+                    if ans is not None:
+                        answers[i]["answer"] = ans
+                except Exception as exc:  # noqa: BLE001
+                    print(f"submit: task {t.id} failed: {exc}", file=sys.stderr)
+                write_output_results(args.output, answers)
+            if remote_calls == 0 and tasks:                          # avoid zero-API-call disqualification
+                reply = _guarded_call(fw_tier, _SUBMIT_SYSTEM, tasks[-1].prompt)
+                if reply is not None:
+                    answers[-1]["answer"] = reply.text
+                    scored_tokens += reply.in_tok + reply.out_tok
+                    remote_calls += 1
+                    write_output_results(args.output, answers)
+            # local/deterministic answers = everything answered minus the remote calls actually made
+            local_answered = max(0, len([a for a in answers if a["answer"]]) - remote_calls)
+            mode = "smartlocal (math+code→$0, sentiment+NER→local, watchdog, else Fireworks)"
+
+        elif cal_path and os.path.exists(cal_path):
+            fns = build_confidence_fns(config, tiers)
+            calibrator, tau = load_calibrator(cal_path)
+            tiers[0] = dataclasses.replace(tiers[0], threshold=tau)
+            cals = {tiers[0].name: calibrator}
+            for i, t in enumerate(tasks):
+                try:
+                    r = route(t, tiers, fns, calibrators=cals)
+                    answers[i]["answer"] = r.answer
+                    scored_tokens += r.scored_tokens
+                    local_answered += 0 if r.used_remote else 1
+                except Exception as exc:  # noqa: BLE001
+                    print(f"submit: task {t.id} failed: {exc}", file=sys.stderr)
+                write_output_results(args.output, answers)
+            mode = f"cascade (calibrator={cal_path})"
+
+        else:
+            # single Fireworks model, selected by name (ROUTER_FW_MODEL) then positional index.
+            pref = os.environ.get("ROUTER_FW_MODEL", "").strip()
+            tier = next((t for t in tiers if pref and pref in t.name), None)
+            if tier is None:
+                tier = tiers[int(os.environ.get("ROUTER_MODEL_INDEX", "-1"))]
+            for i, t in enumerate(tasks):
+                reply = _guarded_call(tier, _SUBMIT_SYSTEM, t.prompt)  # never raises
+                if reply is not None:
+                    answers[i]["answer"] = reply.text
+                    scored_tokens += reply.in_tok + reply.out_tok
+                write_output_results(args.output, answers)
+            mode = f"single-model={tier.name}"
+    except Exception as exc:  # noqa: BLE001 — never crash the container; a partial results.json beats zero
+        print(f"submit: fatal routing error, kept partial results: {exc}", file=sys.stderr)
+
+    write_output_results(args.output, answers)                        # final atomic write
     print(f"submit: {len(answers)} answers → {args.output}  | mode={mode}")
     print(f"  scored (remote) tokens: {scored_tokens}  ({scored_tokens / max(1, len(answers)):.0f}/task)"
-          f"  | local-answered: {local_answered}/{len(answers)}")
+          f"  | answered: {len([a for a in answers if a['answer']])}/{len(answers)}")
     return {"n": len(answers), "mode": mode, "scored_tokens": scored_tokens,
             "local_answered": local_answered}
 
