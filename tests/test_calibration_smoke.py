@@ -1,4 +1,4 @@
-"""Smoke test — the calibration package still runs intact here,
+"""Smoke test — the reused PARALLAX calibration package still runs intact here,
 on router-shaped rows. If this fails after a copy, the import-path fix regressed.
 
 Run:  PYTHONPATH=src python3 tests/test_calibration_smoke.py   (or: uv run pytest -q)

@@ -34,7 +34,7 @@ dist/
 build/
 *.egg-info/
 
-# Parent tree artifacts
+# Parent GAUGE tree artifacts (this submission lives in a subdir of GAUGE)
 ../
 google/
 reuse/

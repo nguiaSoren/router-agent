@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 #
-# router-agent — Track 1 submission image (Participant Guide contract).
+# Token Golf — Track 1 submission image (Participant Guide contract).
 # =====================================================================
 # Judging VM = linux/amd64, CPU (no GPU): image <=10GB, ready in 60s, 10min total / <30s per request.
 # Container reads /input/tasks.json -> writes /output/results.json. Binary cascade:

@@ -1,18 +1,21 @@
-# Acknowledgments
+# Attribution & reuse (honest accounting)
 
-TokenGolf builds on a few established ideas and one open dataset, credited honestly:
+This project is a **recombination, not an invention**. The original seam is narrow: retargeting calibrated, abstaining routing onto the *local-vs-remote model* decision. The load-bearing machinery is reused, and that is the point.
 
-- **Calibrated, abstaining cascade routing** — the "try the cheap option, escalate when unsure, abstain honestly" pattern for model cascades is established prior art (e.g. UCCI-style uncertainty-calibrated cascade routing). TokenGolf applies it to the local-vs-remote decision through a calibrated confidence gate.
-- **Self-consistency** — sampling a model several times and measuring answer agreement as a confidence signal is a known technique; here it runs on the free local tier, so the escalation decision costs no scored tokens.
-- **RouterBench** (`withmartian/routerbench`, MIT) — used only as a free, precomputed dataset to dry-run the calibration plumbing offline. Catalogued and fetched, never rehosted.
+## Reused verbatim
 
-The confidence-calibration package (`src/router_agent/calibration/`) is pure stdlib (Platt + isotonic fits, debiased ECE per Kumar et al. 2019, nested cross-validation, a selective/abstain policy), MIT.
+- **`src/router_agent/calibration/`** — the confidence-calibration package (Platt + isotonic fits, debiased ECE, nested-CV, the selective/abstain policy). Copied verbatim from the GAUGE project's `gauge.calibration`, which in turn copied it verbatim from PARALLAX's `parallax.calibration`. The **only** edit on each hop is the intra-package import path. Pure stdlib (no numpy/sklearn). MIT throughout.
 
-## What TokenGolf does
+## Mechanisms we build on (not ours)
 
-- Wires the calibration/abstention machinery into a binary, cost-ordered local↔remote cascade scored on remote tokens.
-- Spends unlimited (free) local samples on the *escalation decision* itself.
-- Disables the Fireworks reasoning models' hidden reasoning (`reasoning_effort="none"`), the dominant cost on a token-ranked leaderboard.
-- Calibration protocol: label local-correctness, fit, pick the lowest threshold that clears the accuracy floor with margin.
+- **Calibrated-abstaining cascade routing** — the "try-cheap, escalate-when-unsure, abstain-honestly" pattern is established (e.g. model-cascade routing à la UCCI). We apply it to its native problem (which model to call), with a calibrated confidence gate.
+- **Self-consistency** — sampling a model multiple times and measuring answer agreement as a confidence signal is a known technique.
+- **RouterBench** (`withmartian/routerbench`, MIT) — used only as a free, precomputed stand-in to dry-run the calibration plumbing offline. Catalogued + fetched, never rehosted.
 
-No "first" or "novel" claims. Every reported number states its `n` and held-out protocol.
+## What is ours
+
+- The retarget: wiring the calibration/abstention machinery into an N-tier, cost-ordered local↔remote cascade scored on remote tokens.
+- The free-local-compute lever: spending unlimited (free) local samples on the *escalation decision* itself.
+- The launch-day calibration protocol: label local-correctness, fit, pick the lowest threshold that clears the accuracy floor with margin.
+
+No "first" or "novel" claims. Every number will state its `n` and held-out protocol.

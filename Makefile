@@ -1,4 +1,4 @@
-# router-agent — common tasks. Run from hackathon_track1/.
+# Token Golf — common tasks. Run from hackathon_track1/.
 # Live targets load API keys from an optional env file (defaults to the parent ../.env during dev;
 # override with `make live-smoke ENV_FILE=path`). Standalone, just export the keys yourself.
 

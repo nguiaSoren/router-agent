@@ -134,3 +134,65 @@ def test_violates_length_constraint_char_limit():
 
 def test_violates_length_constraint_no_limit_declared():
     assert violates_length_constraint("anything at all here", "Explain quantum computing.") is False
+
+
+# --- math solver ($0 deterministic tier) ---------------------------------------
+from router_agent.heuristics import looks_like_math, solve_math  # noqa: E402
+
+
+def test_solve_math_fires_on_exact_cases():
+    assert solve_math("What is 15% of 240?") == "36"
+    assert solve_math("Calculate 47 * 13") == "611"
+    assert solve_math("What is 128 / 4?") == "32"
+    assert solve_math("Compute 3 + 4 * 2") == "11"
+    assert solve_math("What is 20 percent of 150?") == "30"
+    assert solve_math("What is 2.5 * 4?") == "10"
+
+
+def test_solve_math_abstains_on_ambiguous():
+    # word problems / non-arithmetic → None (escalate to Fireworks, never a wrong answer)
+    assert solve_math("A train travels 240 km in 3 hours. What is its average speed?") is None
+    assert solve_math("If I have 3 apples and buy 2 more, how many total?") is None
+    assert solve_math("What is the capital of France?") is None
+    assert solve_math("Classify the sentiment of this review.") is None
+    assert solve_math("") is None
+
+
+def test_looks_like_math():
+    assert looks_like_math("What is 15% of 240?") is True
+    assert looks_like_math("Compute 3 * 4") is True
+    assert looks_like_math("What is the capital of France?") is False
+    assert looks_like_math("Write a function to add two numbers.") is False
+
+
+def test_safe_arith_rejects_code_injection():
+    # solver must never execute names/calls — only numbers + operators
+    assert solve_math("__import__('os').system('ls')") is None
+
+
+# --- sandboxed code evaluator ($0 exec tier) -----------------------------------
+from router_agent.heuristics import looks_like_code_eval, solve_code  # noqa: E402
+
+
+def test_solve_code_evaluates_safe():
+    assert solve_code("What is the output of this code:\n```python\nprint(sum(range(10)))\n```") == "45"
+    assert solve_code("Evaluate: 2**10 + len('hello')") == "1029"
+    assert solve_code("What is the output of:\n```python\nprint(sorted([3,1,2]))\n```") == "[1, 2, 3]"
+
+
+def test_solve_code_abstains_on_generative_and_noncode():
+    assert solve_code("Write a Python function that reverses a string.") is None
+    assert solve_code("Fix the bug in this code: def f(x) return x+1") is None
+    assert solve_code("What is the capital of France?") is None
+
+
+def test_solve_code_blocks_dangerous():
+    # imports / __import__ / os access must be rejected → abstain (never executed)
+    assert solve_code("What is the output of:\n```python\nimport os\nprint(os.listdir('/'))\n```") is None
+    assert solve_code("Evaluate: __import__('os').system('ls')") is None
+
+
+def test_looks_like_code_eval():
+    assert looks_like_code_eval("What is the output of this code: print(1)") is True
+    assert looks_like_code_eval("Evaluate: 2+2") is True
+    assert looks_like_code_eval("Write a function to sort a list.") is False

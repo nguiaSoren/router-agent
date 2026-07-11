@@ -15,15 +15,15 @@ TokenGolf answers all eight Track-1 categories while minimizing the Fireworks to
 Fireworks AI, Docker, Python, llama.cpp, Qwen, AMD Developer Cloud
 
 ## Public artifacts
-- **Docker image (submit this):** `docker.io/soren19/router-agent:kimi` (lean, kimi-k2p7-code, reasoning off, amd64, 58 MB, PUBLIC ✓) = measured-best
-  - Alternates: `:latest` (minimax fallback), `:smartlocal` (adds the free-local tier)
+- **Docker image (submit this):** `docker.io/soren19/router-agent:smartlocal` (amd64, PUBLIC ✓) = **most token-efficient**. Reasoning off (kimi) for the hard categories, PLUS four $0 paths (each exact-or-abstain — never a wrong answer): **sentiment + NER → free local Qwen**, **arithmetic/percentages → a deterministic calculator**, and **"evaluate/output of this code" → a sandboxed executor** (AST-locked, injection-safe). On a mixed test: **4/6 answered free, 176 remote tokens**. NER prompt fixed (no example-parroting hallucination); zero-Fireworks-call DQ guard included.
+  - Alternates: `:kimi` (lean all-remote, ~58 MB — the safe accuracy fallback if local ever misses the gate), `:latest` (minimax).
 - **GitHub repo:** https://github.com/nguiaSoren/router-agent (public, README, MIT) ✓
 - Cover image: TODO
-- Video presentation: TODO (short demo: `docker run` → results.json + token count)
+- Video presentation: **DONE** → `submission/video/TokenGolf_demo.mp4` (114 s: animated deck + live terminal A/B + Soren's voiceover + ducked ambient music + word-by-word animated captions). Upload pending [you]
 - Slide deck: TODO (problem → route-by-confidence → token efficiency; note the measured model bench)
 
 ## A/B plan (leaderboard is the only ground truth for the real gate)
-Submit `:latest` (minimax, safe) first → confirm it clears the gate + note its token rank. Then submit `:kimi` → if it clears the gate too, it should rank higher on tokens. Keep whichever ranks best. Rate limit is 10/hr.
+Submit **`:smartlocal`** (most token-efficient) as the primary. Also submit **`:kimi`** (all-remote, accuracy-safe) as the fallback — if `:smartlocal` clears the gate it ranks lower on tokens (~22%+ fewer) and wins; if local NER ever drags accuracy below the gate on the hidden set, `:kimi` is the safe net. Rate limit is 10/hr, so A/B both.
 
 ## Pre-submit checklist
 - [ ] Final image rebuilt with the winning config (post-P1) + pushed + **PUBLIC** + amd64 manifest

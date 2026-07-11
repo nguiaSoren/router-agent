@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 #
-# router-agent — LEAN Fireworks-only submission image (Track 1).
+# Token Golf — LEAN Fireworks-only submission image (Track 1).
 # =============================================================
 # No local model: the CPU-3B tier was measured marginal (~6% safe coverage, latency-risky under
 # the 30s/10min limits), so the submission routes every task to ONE Fireworks model with concise,

@@ -1,4 +1,4 @@
-# router-agent — Track 1 submission image (linux/amd64, CPU)
+# Token Golf — Track 1 submission image (linux/amd64, CPU)
 
 The judging VM runs **linux/amd64** (Participant Guide) — no GPU is promised, image ≤10 GB, ready in 60 s, 10 min total / <30 s per request. So this image is **CPU-only and lean**: a `python:3.11-slim` base + the OpenAI-compatible client (`.[serving]`), no ROCm and no bundled model runtime. v1 is **Fireworks-only** — every answer is a Fireworks call routed through the harness proxy. (A small in-container local model can be added later *iff* the rules confirm local answering is allowed and there's CPU headroom under the 30 s limit — earlier we mistakenly assumed an AMD/ROCm GPU box; the guide says otherwise.)
 

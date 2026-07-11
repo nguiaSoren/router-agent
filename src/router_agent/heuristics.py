@@ -38,6 +38,10 @@ __all__ = [
     "deterministic_ner_answer",
     "input_length_tokens",
     "violates_length_constraint",
+    "looks_like_math",
+    "solve_math",
+    "looks_like_code_eval",
+    "solve_code",
 ]
 
 
@@ -446,3 +450,233 @@ def violates_length_constraint(output: str, prompt: str) -> bool:
         if len(output) > max_chars:
             return True
     return False
+
+
+# ---------------------------------------------------------------------------
+# looks_like_math / solve_math  —  the $0 deterministic arithmetic tier
+# ---------------------------------------------------------------------------
+#
+# A conservative, verification-gated calculator: it answers a math task at **$0
+# (no model call)** ONLY when the prompt reduces to an unambiguous arithmetic
+# expression or a "X% of Y" percentage. Anything requiring interpretation (word
+# problems, multi-step reasoning, "how many …") returns ``None`` → the caller
+# escalates to Fireworks. So it can never emit a *wrong* answer: on the cases it
+# fires, the result is exact computation; on everything else it abstains.
+#
+# This is GAUGE's abstain-when-unsure rule applied to arithmetic: take the free
+# path only when provably correct, else pay for the model.
+
+import ast as _ast  # noqa: E402  (kept local to this block)
+import operator as _op  # noqa: E402
+
+_MATH_OPS = {
+    _ast.Add: _op.add, _ast.Sub: _op.sub, _ast.Mult: _op.mul,
+    _ast.Div: _op.truediv, _ast.USub: _op.neg, _ast.Pow: _op.pow,
+}
+
+# cue words that mark a prompt as a compute request
+_RE_MATH_CUE = re.compile(
+    r"\b(what is|calculate|compute|evaluate|how much|result of|sum of|product of|"
+    r"percent|percentage)\b",
+    re.IGNORECASE,
+)
+# X% of Y  /  X percent of Y
+_RE_PCT = re.compile(r"([\d.]+)\s*(?:%|percent)\s+of\s+([\d.]+)", re.IGNORECASE)
+# a run of digits joined by + - * / (an explicit arithmetic expression)
+_RE_EXPR = re.compile(r"\d+(?:\.\d+)?(?:\s*[-+*/]\s*\d+(?:\.\d+)?)+")
+
+
+def looks_like_math(prompt: str) -> bool:
+    """Cheap predicate: does ``prompt`` look like a compute/arithmetic task? (routing signal)
+
+    True when it contains a digit AND either a compute cue word or a bare ``a<op>b`` pattern.
+    Deterministic, case‑insensitive. Crude by design — it only *routes*; :func:`solve_math`
+    decides whether the task is actually solvable for free."""
+    if not prompt or not re.search(r"\d", prompt):
+        return False
+    return bool(_RE_MATH_CUE.search(prompt)) or bool(re.search(r"\d\s*[-+*/×÷]\s*\d", prompt))
+
+
+def _safe_arith(expr: str):
+    """Evaluate a *pure arithmetic* expression (numbers + ``+ - * / ** ()`` only) or return None.
+
+    Uses an AST walk with a whitelisted operator set — no ``eval``, no names, no calls, so it is
+    injection‑safe and total."""
+    try:
+        node = _ast.parse(expr, mode="eval").body
+    except (SyntaxError, ValueError):
+        return None
+
+    def _ev(n):
+        if isinstance(n, _ast.Constant) and isinstance(n.value, (int, float)):
+            return n.value
+        if isinstance(n, _ast.BinOp) and type(n.op) in _MATH_OPS:
+            return _MATH_OPS[type(n.op)](_ev(n.left), _ev(n.right))
+        if isinstance(n, _ast.UnaryOp) and type(n.op) in _MATH_OPS:
+            return _MATH_OPS[type(n.op)](_ev(n.operand))
+        raise ValueError("unsupported node")
+
+    try:
+        return _ev(node)
+    except (ValueError, ZeroDivisionError, TypeError, OverflowError):
+        return None
+
+
+def _fmt_num(x) -> str:
+    """Format a numeric result: integer when whole, else a trimmed decimal."""
+    if isinstance(x, float) and abs(x - round(x)) < 1e-9:
+        x = int(round(x))
+    if isinstance(x, int):
+        return str(x)
+    return str(round(x, 4)).rstrip("0").rstrip(".")
+
+
+def solve_math(prompt: str) -> str | None:
+    """A **$0** deterministic answer for ``prompt`` — or ``None`` to escalate.
+
+    Handles exactly two provably‑safe shapes: ``X% of Y`` percentages, and self‑contained
+    arithmetic expressions (``47 * 13``, ``200 - 55 + 10``, ``128 / 4``). Returns ``None`` for
+    word problems, multi‑step reasoning, or anything not reducible to those — the caller then
+    routes to Fireworks. No model call. Exact on what it answers; silent (abstains) otherwise."""
+    if not prompt:
+        return None
+    low = prompt.lower().replace(",", "")
+    m = _RE_PCT.search(low)
+    if m:
+        try:
+            return _fmt_num(float(m.group(1)) / 100.0 * float(m.group(2)))
+        except ValueError:
+            return None
+    cleaned = prompt.replace(",", "").replace("×", "*").replace("÷", "/")
+    m = _RE_EXPR.search(cleaned)
+    if m:
+        val = _safe_arith(m.group(0))
+        if val is not None:
+            return _fmt_num(val)
+    return None
+
+
+# ---------------------------------------------------------------------------
+# looks_like_code_eval / solve_code  —  the $0 sandboxed-execution tier
+# ---------------------------------------------------------------------------
+#
+# For tasks that literally ask to *run* code — "what is the output of …",
+# "evaluate <expression>" — the answer is a deterministic computation, so we
+# execute it in a locked sandbox and return the result at **$0**. Exact when it
+# fires; abstains (``None`` → escalate) on anything generative (write/fix code —
+# those need a model; "runs" ≠ "correct"), non-code, or unsafe.
+#
+# Sandbox: AST is rejected if it imports, touches dunder names/attributes, or
+# calls a dangerous builtin (eval/exec/open/__import__/getattr/…); execution runs
+# with a whitelisted builtins map and a SIGALRM timeout. Benign eval tasks only —
+# never a route for arbitrary untrusted code.
+
+import builtins as _bi  # noqa: E402
+import contextlib as _ctx  # noqa: E402
+import io as _io  # noqa: E402
+import signal as _signal  # noqa: E402
+
+_SAFE_BUILTINS = {
+    k: getattr(_bi, k)
+    for k in (
+        "abs min max sum len range sorted reversed round int float str bool list tuple dict "
+        "set frozenset enumerate zip map filter all any ord chr divmod pow bin hex oct format "
+        "print repr isinstance type True False None"
+    ).split()
+    if hasattr(_bi, k)
+}
+_DANGER_CALLS = frozenset({
+    "eval", "exec", "compile", "open", "input", "__import__", "globals", "locals", "vars",
+    "getattr", "setattr", "delattr", "help", "exit", "quit", "memoryview", "breakpoint",
+})
+
+_RE_EVAL_CUE = re.compile(
+    r"(output of|what (?:is|does|will).{0,40}(?:print|output|return|result)|"
+    r"evaluate|result of (?:running|executing|the code)|value of the expression)",
+    re.IGNORECASE,
+)
+_RE_FENCE = re.compile(r"```(?:python|py)?\s*(.*?)```", re.S)
+
+
+def _ast_exec_safe(tree: _ast.AST) -> bool:
+    for n in _ast.walk(tree):
+        if isinstance(n, (_ast.Import, _ast.ImportFrom, _ast.Global, _ast.Nonlocal)):
+            return False
+        if isinstance(n, _ast.Attribute) and isinstance(n.attr, str) and n.attr.startswith("__"):
+            return False
+        if isinstance(n, _ast.Name) and n.id.startswith("__"):
+            return False
+        if isinstance(n, _ast.Call) and isinstance(n.func, _ast.Name) and n.func.id in _DANGER_CALLS:
+            return False
+    return True
+
+
+def _run_sandboxed(code: str, timeout: int = 3) -> str | None:
+    """Execute ``code`` in a locked sandbox; return its stdout / last-expression value, or None.
+
+    Rejects imports, dunder access, and dangerous builtins (AST‑checked) and bounds runtime with
+    SIGALRM. Any error, timeout, or empty result → None (the caller escalates)."""
+    try:
+        tree = _ast.parse(code)
+    except (SyntaxError, ValueError):
+        return None
+    if not _ast_exec_safe(tree):
+        return None
+    body = tree.body
+    last = None
+    if body and isinstance(body[-1], _ast.Expr):
+        last = _ast.Expression(body[-1].value)
+        body = body[:-1]
+    module = _ast.Module(body=body, type_ignores=[])
+    ns = {"__builtins__": _SAFE_BUILTINS}
+    out = _io.StringIO()
+
+    def _on_timeout(*_a):
+        raise TimeoutError
+
+    old = _signal.signal(_signal.SIGALRM, _on_timeout)
+    _signal.alarm(timeout)
+    try:
+        with _ctx.redirect_stdout(out):
+            exec(compile(module, "<sandbox>", "exec"), ns)  # noqa: S102 (locked namespace, AST‑checked)
+            val = eval(compile(last, "<sandbox>", "eval"), ns) if last is not None else None
+    except Exception:
+        return None
+    finally:
+        _signal.alarm(0)
+        _signal.signal(_signal.SIGALRM, old)
+    printed = out.getvalue().strip()
+    if val is not None and not printed:
+        return str(val)
+    if printed:
+        return printed
+    return None
+
+
+def looks_like_code_eval(prompt: str) -> bool:
+    """True when ``prompt`` asks to run/evaluate code ("output of …", "evaluate …"). Routing signal."""
+    return bool(prompt) and bool(_RE_EVAL_CUE.search(prompt))
+
+
+def _extract_code(prompt: str) -> str | None:
+    m = _RE_FENCE.search(prompt)
+    if m:
+        return m.group(1).strip()
+    m = re.search(r"(?:evaluate|value of the expression)[:\s]+(.+)$", prompt, re.IGNORECASE)
+    if m:
+        return m.group(1).strip().rstrip("?.")
+    return None
+
+
+def solve_code(prompt: str) -> str | None:
+    """A **$0** answer for an "evaluate this code/expression" task — or ``None`` to escalate.
+
+    Fires only when :func:`looks_like_code_eval` and a code snippet is extractable, then runs it in
+    :func:`_run_sandboxed`. Deterministic and exact on what it answers; abstains on generative
+    debug/generation, non‑code, or unsafe input. No model call."""
+    if not looks_like_code_eval(prompt):
+        return None
+    code = _extract_code(prompt)
+    if not code:
+        return None
+    return _run_sandboxed(code)

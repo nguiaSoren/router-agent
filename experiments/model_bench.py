@@ -60,7 +60,7 @@ _SUBMIT_SYSTEM = (
 )
 
 # The LLM judge for JUDGE_ONLY kinds (summarisation, code_debugging, logical_reasoning).
-# Grader design: (1) grade the SUBSTANCE, not surface wording — the reference is
+# PARALLAX/ROGUE grader design: (1) grade the SUBSTANCE, not surface wording — the reference is
 # ONE acceptable answer, not the required string (fixes XSum-reference strictness that zeroed
 # summarisation); (2) NEVER refuse — always commit to YES/NO so an abstention can't default to a
 # silent False; (3) a per-category rubric (`_JUDGE_RUBRICS`) tells the judge what "correct" means

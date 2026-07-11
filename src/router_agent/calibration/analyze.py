@@ -5,7 +5,8 @@ human gold labels produced by the labeling page (agree / disagree / unsure), thi
 module answers one question per modality: *when the judge says it's this sure, is
 it actually right that often?*
 
-A 3-number credibility check, run per modality. The three headline numbers are:
+This is PARALLAX's "3-number credibility" check, run per modality (review vs
+vision). The three headline numbers are:
 
   1. **accuracy**            — how often the human agreed with the judge,
   2. **ECE**                 — expected calibration error: the gap between the

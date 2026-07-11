@@ -7,8 +7,9 @@ A strict parser fails on any of these, which forces the router to escalate a *co
 paid remote tier purely for a formatting defect. Recovering the JSON the model already produced keeps
 those answers on the FREE local tier.
 
-A compact pure-stdlib JSON-repair helper (``repair_json_text`` + balanced-slice / truncation-close /
-object-splice helpers) that recovers the JSON a model already produced. No re-ask, no deps.
+Adapted from PARALLAX/tessera ``json_repair.py`` (``repair_json_text`` + its balanced-slice /
+truncation-close / object-splice helpers; documented to recover 33/44 answers that had failed purely
+from JSON mangling). Ported here as pure stdlib — no ``ModelBackend`` wrapper, no re-ask, no deps.
 Two extra helpers are new for this project: :func:`parse_json_lenient` (repair then parse, never raise)
 and :func:`strip_to_answer` (clean short non-JSON label/sentiment outputs).
 """
