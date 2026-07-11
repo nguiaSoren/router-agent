@@ -66,6 +66,13 @@ _LOCAL_MATH_SYSTEM = (
 )
 
 
+_LOCAL_GENERAL_SYSTEM = (
+    "Answer directly and concisely. Output only the answer itself — no preamble, no labels, no "
+    "'classification:'/'number:' tags, no restating the question. For code output only code. "
+    "If a length is requested (e.g. one sentence), obey it."
+)  # the 3B dumps _SUBMIT_SYSTEM's multi-format menu verbatim; this single-instruction prompt keeps it clean.
+
+
 def math_via_python(prompt: str, local_tier, n: int = 2) -> str | None:
     """$0 math for a word problem: the LOCAL model translates it to Python, we execute it in the
     sandbox, and require **agreement across n samples** (else abstain → escalate to Fireworks).
@@ -384,7 +391,10 @@ def cmd_submit(args: argparse.Namespace, config: CascadeConfig | None = None) ->
 
         if os.environ.get("ROUTER_SMARTLOCAL"):
             # $0 tiers (math/code deterministic, sentiment/NER local) → one Fireworks call; time watchdog.
+            # ROUTER_ALL_LOCAL=1 → the 0-token play: answer EVERYTHING locally, never call Fireworks
+            # (bets the accuracy gate on the local pipeline; A/B it on the leaderboard).
             from . import heuristics
+            all_local = bool(os.environ.get("ROUTER_ALL_LOCAL"))
             local_tier = next((t for t in tiers if t.is_local), None)
             fw_tier = next((t for t in tiers if not t.is_local), tiers[-1])
             t0 = time.monotonic()
@@ -397,29 +407,33 @@ def cmd_submit(args: argparse.Namespace, config: CascadeConfig | None = None) ->
                     ans = None
                     if heuristics.looks_like_math(t.prompt):
                         ans = heuristics.solve_math(t.prompt)
-                        if ans is None and allow_local and os.environ.get("ROUTER_MATH_PY"):
+                        if ans is None and allow_local and (all_local or os.environ.get("ROUTER_MATH_PY")):
                             ans = math_via_python(t.prompt, local_tier)
                     if ans is None:
                         ans = heuristics.solve_code(t.prompt)
-                    if ans is None and allow_local:
+                    if ans is None and (allow_local or all_local):
                         if heuristics.looks_like_sentiment(t.prompt):
                             r = _guarded_call(local_tier, _LOCAL_SENTIMENT_SYSTEM, t.prompt)
                             ans = r.text if r else None
                         elif heuristics.looks_like_ner(t.prompt):
                             r = _guarded_call(local_tier, _LOCAL_NER_SYSTEM, t.prompt)
                             ans = r.text if r else None
-                    if ans is None:                                 # else / fallback → Fireworks
-                        reply = _guarded_call(fw_tier, _SUBMIT_SYSTEM, t.prompt)
-                        if reply is not None:
-                            ans = reply.text
-                            remote_calls += 1
-                            scored_tokens += reply.in_tok + reply.out_tok
+                    if ans is None:                                 # fallback
+                        if all_local:                               # 0-token play → local model, no Fireworks
+                            r = _guarded_call(local_tier, _LOCAL_GENERAL_SYSTEM, t.prompt)
+                            ans = r.text if r else ""
+                        else:                                       # else → one Fireworks call
+                            reply = _guarded_call(fw_tier, _SUBMIT_SYSTEM, t.prompt)
+                            if reply is not None:
+                                ans = reply.text
+                                remote_calls += 1
+                                scored_tokens += reply.in_tok + reply.out_tok
                     if ans is not None:
                         answers[i]["answer"] = ans
                 except Exception as exc:  # noqa: BLE001
                     print(f"submit: task {t.id} failed: {exc}", file=sys.stderr)
                 write_output_results(args.output, answers)
-            if remote_calls == 0 and tasks:                          # avoid zero-API-call disqualification
+            if not all_local and remote_calls == 0 and tasks:       # zero-API-call guard (off in all-local)
                 reply = _guarded_call(fw_tier, _SUBMIT_SYSTEM, tasks[-1].prompt)
                 if reply is not None:
                     answers[-1]["answer"] = reply.text
@@ -428,7 +442,8 @@ def cmd_submit(args: argparse.Namespace, config: CascadeConfig | None = None) ->
                     write_output_results(args.output, answers)
             # local/deterministic answers = everything answered minus the remote calls actually made
             local_answered = max(0, len([a for a in answers if a["answer"]]) - remote_calls)
-            mode = "smartlocal (math+code→$0, sentiment+NER→local, watchdog, else Fireworks)"
+            mode = ("all-local (0 Fireworks calls → 0 scored tokens)" if all_local
+                    else "smartlocal (math+code→$0, sentiment+NER→local, watchdog, else Fireworks)")
 
         elif cal_path and os.path.exists(cal_path):
             fns = build_confidence_fns(config, tiers)
