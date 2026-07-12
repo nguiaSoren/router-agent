@@ -10,8 +10,8 @@ from __future__ import annotations
 
 import json
 
-from router_agent.config import CascadeConfig
-from router_agent.schema import Reply, Task, Tier
+from tokengolf.config import CascadeConfig
+from tokengolf.schema import Reply, Task, Tier
 from scripts import launch
 
 # A floor that FORCES escalation: local accuracy (0.5) can't clear 0.9, so the picker

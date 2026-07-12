@@ -7,8 +7,8 @@ never accepts on its gate).
 
 from __future__ import annotations
 
-from router_agent.cascade import route
-from router_agent.schema import (
+from tokengolf.cascade import route
+from tokengolf.schema import (
     CallFn,
     ConfidenceResult,
     Reply,

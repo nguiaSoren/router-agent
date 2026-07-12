@@ -7,7 +7,7 @@ hit is required but incidental extra hits are tolerated.
 
 from __future__ import annotations
 
-from router_agent.heuristics import (
+from tokengolf.heuristics import (
     deterministic_ner_answer,
     extract_entities,
     input_length_tokens,
@@ -137,7 +137,7 @@ def test_violates_length_constraint_no_limit_declared():
 
 
 # --- math solver ($0 deterministic tier) ---------------------------------------
-from router_agent.heuristics import looks_like_math, solve_math  # noqa: E402
+from tokengolf.heuristics import looks_like_math, solve_math  # noqa: E402
 
 
 def test_solve_math_fires_on_exact_cases():
@@ -171,7 +171,7 @@ def test_safe_arith_rejects_code_injection():
 
 
 # --- sandboxed code evaluator ($0 exec tier) -----------------------------------
-from router_agent.heuristics import looks_like_code_eval, solve_code  # noqa: E402
+from tokengolf.heuristics import looks_like_code_eval, solve_code  # noqa: E402
 
 
 def test_solve_code_evaluates_safe():
@@ -199,7 +199,7 @@ def test_looks_like_code_eval():
 
 
 # --- run_python (sandbox entry for the model-writes-Python path) ----------------
-from router_agent.heuristics import run_python  # noqa: E402
+from tokengolf.heuristics import run_python  # noqa: E402
 
 
 def test_run_python_and_math_word_detection():

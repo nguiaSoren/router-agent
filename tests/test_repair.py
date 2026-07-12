@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 
-from router_agent.repair import parse_json_lenient, repair_json_text, strip_to_answer
+from tokengolf.repair import parse_json_lenient, repair_json_text, strip_to_answer
 
 
 def test_fenced_json_array_is_recovered():

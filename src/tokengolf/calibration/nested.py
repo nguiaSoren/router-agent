@@ -19,7 +19,7 @@ Reuses the fitting primitives from ``recalibrate`` (``fit_isotonic``, ``fit_plat
 
 from __future__ import annotations
 
-from router_agent.calibration.recalibrate import (
+from tokengolf.calibration.recalibrate import (
     _loo_method,
     apply_cal,
     ece,

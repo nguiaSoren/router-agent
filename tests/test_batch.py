@@ -6,8 +6,8 @@ import json
 
 import pytest
 
-from router_agent.batch import BatchRequest, charge, parse_output, submit_and_wait, to_jsonl
-from router_agent.schema import CostTracker
+from tokengolf.batch import BatchRequest, charge, parse_output, submit_and_wait, to_jsonl
+from tokengolf.schema import CostTracker
 
 
 def test_to_jsonl_shape_and_openai_kwargs():
@@ -62,7 +62,7 @@ def test_charge_uses_batch_prices():
 
 def test_submit_and_wait_polls_then_collects(monkeypatch):
     # Drive the orchestration without network: stub submit/poll/collect, no real sleeping.
-    import router_agent.batch as b
+    import tokengolf.batch as b
 
     statuses = iter(["in_progress", "in_progress", "completed"])
     monkeypatch.setattr(b, "submit", lambda *a, **k: "batch_123")
@@ -85,7 +85,7 @@ def test_submit_and_wait_polls_then_collects(monkeypatch):
 
 
 def test_submit_and_wait_raises_on_failed(monkeypatch):
-    import router_agent.batch as b
+    import tokengolf.batch as b
     monkeypatch.setattr(b, "submit", lambda *a, **k: "batch_x")
     monkeypatch.setattr(b, "poll", lambda *a, **k: "failed")
     with pytest.raises(RuntimeError, match="failed"):

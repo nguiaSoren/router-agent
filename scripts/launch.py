@@ -38,12 +38,12 @@ import logging
 import sys
 from functools import partial
 
-from router_agent.calibration.recalibrate import apply_map, fit_map
-from router_agent.config import DEV_CONFIG, CascadeConfig
-from router_agent.eval import build_calibration_rows, evaluate_cascade, format_report
-from router_agent.run import build_confidence_fns, build_tiers, save_calibrator
-from router_agent.schema import CONF_KEY, CORRECT_KEY, CostTracker, Task
-from router_agent.threshold import pick_threshold
+from tokengolf.calibration.recalibrate import apply_map, fit_map
+from tokengolf.config import DEV_CONFIG, CascadeConfig
+from tokengolf.eval import build_calibration_rows, evaluate_cascade, format_report
+from tokengolf.run import build_confidence_fns, build_tiers, save_calibrator
+from tokengolf.schema import CONF_KEY, CORRECT_KEY, CostTracker, Task
+from tokengolf.threshold import pick_threshold
 
 logger = logging.getLogger("launch")
 
@@ -87,7 +87,7 @@ def load_calib_and_test(args: argparse.Namespace) -> tuple[list[Task], list[Task
     each kind is split independently so BOTH halves carry both kinds. Loaded/sampled
     counts are logged (no silent caps)."""
     if args.dev:
-        from router_agent import tasks as tasks_mod  # lazy: pulls `datasets`
+        from tokengolf import tasks as tasks_mod  # lazy: pulls `datasets`
 
         which, n = args.dev, args.n
         if which == "gsm8k":
@@ -167,7 +167,7 @@ def run_launch(args: argparse.Namespace, config: CascadeConfig | None = None) ->
     calibrators = {tiers[0].name: calibrator}
 
     # Capture each routed answer as a side effect of grading (single routing pass).
-    from router_agent import tasks as tasks_mod
+    from tokengolf import tasks as tasks_mod
 
     captured: dict[str, str] = {}
 

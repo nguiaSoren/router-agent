@@ -11,7 +11,7 @@ Two subcommands, matching the launch-day flow:
     cascade (local first, escalate to remote only when calibrated confidence < τ),
     and emit answers + the leaderboard-shaped report (accuracy + remote-token total).
 
-This is the container ENTRYPOINT (`python -m router_agent.run ...`). It needs live
+This is the container ENTRYPOINT (`python -m tokengolf.run ...`). It needs live
 model endpoints (Ollama locally + a remote provider), so the LIVE exercise is a
 prep/launch step; the wiring itself is unit-tested offline with fake tiers.
 
@@ -566,7 +566,7 @@ def cmd_submit(args: argparse.Namespace, config: CascadeConfig | None = None) ->
 
 # ----------------------------------------------------------------- argparse
 def build_parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(prog="router_agent.run", description="Token-efficient routing agent")
+    p = argparse.ArgumentParser(prog="tokengolf.run", description="Token-efficient routing agent")
     sub = p.add_subparsers(dest="cmd", required=True)
 
     def add_task_args(sp: argparse.ArgumentParser) -> None:

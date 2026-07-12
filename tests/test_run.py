@@ -10,9 +10,9 @@ from __future__ import annotations
 import argparse
 import json
 
-from router_agent import run
-from router_agent.config import CascadeConfig
-from router_agent.schema import Reply, Tier
+from tokengolf import run
+from tokengolf.config import CascadeConfig
+from tokengolf.schema import Reply, Tier
 
 # A floor that FORCES escalation: local accuracy (0.5) can't clear 0.9, so the picker
 # must route the low-confidence (hard) tasks to remote.
@@ -33,7 +33,7 @@ _LOCAL_CORRECT = {"easy-1", "easy-2"}  # prompts the local model gets right
 
 
 def _make_tasks():
-    from router_agent.schema import Task
+    from tokengolf.schema import Task
     return [Task(id=i, prompt=p, gold=g, kind="qa", meta={}) for (i, p, g) in _TASKS]
 
 
@@ -108,7 +108,7 @@ def test_route_without_calibrator_escalates_all(monkeypatch, tmp_path):
 
 def test_submit_reads_input_writes_output(monkeypatch, tmp_path):
     # The harness contract: /input/tasks.json (JSON array) → /output/results.json.
-    from router_agent.config import CascadeConfig
+    from tokengolf.config import CascadeConfig
 
     def fake_call(system: str, user: str) -> Reply:
         return Reply(text=f"ans:{user}", in_tok=5, out_tok=3)
@@ -176,7 +176,7 @@ def test_math_via_cot_sc_majority_vote():
 def test_submit_never_ships_blank_answer(monkeypatch, tmp_path):
     # A failed call leaves a blank skeleton answer; the end-fill must replace it so the scorer never
     # sees an empty answer (which can read as a missing task).
-    from router_agent.config import CascadeConfig
+    from tokengolf.config import CascadeConfig
 
     def boom(system: str, user: str) -> Reply:
         raise RuntimeError("provider down")
@@ -196,7 +196,7 @@ def test_submit_never_ships_blank_answer(monkeypatch, tmp_path):
 
 def test_submit_smartlocal_routes_by_category(monkeypatch, tmp_path):
     # sentiment/NER prompts → free local (0 scored tokens); everything else → Fireworks.
-    from router_agent.config import CascadeConfig
+    from tokengolf.config import CascadeConfig
 
     local = Tier(name="local", call=lambda s, u: Reply("negative", 10, 2),
                  price_in=0.0, price_out=0.0, is_local=True)

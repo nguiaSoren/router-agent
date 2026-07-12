@@ -20,8 +20,8 @@ from experiments.routerbench_dryrun import (
     run_gate,
     three_strategies,
 )
-from router_agent.schema import CONF_KEY, CORRECT_KEY
-from router_agent.threshold import REMOTE_CORRECT_KEY, fit_calibrator
+from tokengolf.schema import CONF_KEY, CORRECT_KEY
+from tokengolf.threshold import REMOTE_CORRECT_KEY, fit_calibrator
 
 CHEAP = "cheap-7b"
 REMOTE = "strong-70b"

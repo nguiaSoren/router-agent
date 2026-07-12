@@ -15,11 +15,11 @@ import argparse
 import json
 import os
 
-from router_agent import confidence, tasks
-from router_agent import local_llm
-from router_agent.calibration.recalibrate import apply_map, fit_map
-from router_agent.schema import CONF_KEY, CORRECT_KEY, Task
-from router_agent.threshold import risk_coverage_curve
+from tokengolf import confidence, tasks
+from tokengolf import local_llm
+from tokengolf.calibration.recalibrate import apply_map, fit_map
+from tokengolf.schema import CONF_KEY, CORRECT_KEY, Task
+from tokengolf.threshold import risk_coverage_curve
 
 
 def load_checkable(n_per: int) -> list[Task]:

@@ -11,9 +11,9 @@ import os
 
 import pytest
 
-from router_agent.config import BASE_URLS, TierConfig
-from router_agent.providers import _finalize, _resolve_api_key, _resolve_base_url, build_tier
-from router_agent.schema import BudgetExceeded, CostTracker, Reply
+from tokengolf.config import BASE_URLS, TierConfig
+from tokengolf.providers import _finalize, _resolve_api_key, _resolve_base_url, build_tier
+from tokengolf.schema import BudgetExceeded, CostTracker, Reply
 
 # Fireworks $/1M pricing is illustrative; the test asserts the ARITHMETIC, not the rates.
 REMOTE = TierConfig(
@@ -103,7 +103,7 @@ _LIVE_OK = bool(os.environ.get("OLLAMA_BASE_URL") or os.environ.get("ROUTER_LIVE
 
 @pytest.mark.skipif(not _LIVE_OK, reason="set OLLAMA_BASE_URL or ROUTER_LIVE_SMOKE to run the live call")
 def test_live_smoke_local():
-    from router_agent.providers import live_smoke
+    from tokengolf.providers import live_smoke
     reply = live_smoke(LOCAL)
     assert isinstance(reply, Reply)
     assert reply.out_tok >= 0

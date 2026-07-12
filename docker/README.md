@@ -11,9 +11,9 @@ The judging VM runs **linux/amd64** (Participant Guide) — no GPU is promised, 
 ## Build & push (judging VM is amd64)
 ```bash
 # from the repo root (contains pyproject.toml). On Apple Silicon, cross-build for amd64:
-docker buildx build --platform linux/amd64 -f docker/Dockerfile -t <registry>/router-agent:latest --push .
+docker buildx build --platform linux/amd64 -f docker/Dockerfile -t <registry>/tokengolf:latest --push .
 # On an Intel/AMD host, a plain build already targets amd64:
-docker build -f docker/Dockerfile -t <registry>/router-agent:latest .
+docker build -f docker/Dockerfile -t <registry>/tokengolf:latest .
 ```
 
 ## Run locally (smoke)
@@ -25,10 +25,10 @@ docker run --rm \
   -e FIREWORKS_BASE_URL="https://api.fireworks.ai/inference/v1" \
   -e ALLOWED_MODELS="<id1>,<id2>" \
   -v "$PWD/input:/input" -v "$PWD/output:/output" \
-  <registry>/router-agent:latest
+  <registry>/tokengolf:latest
 cat output/results.json
 ```
 
 **Tuning knobs (env, no rebuild):** `ROUTER_MODEL_INDEX` (which allowed model in single-model mode; default -1 = strongest), `ROUTER_CALIBRATOR` (path to a bundled calibrator → full cascade), `ROUTER_SC_N`, `ROUTER_TAU`, `ROUTER_MAX_TOKENS`.
 
-**Status:** entrypoint is live (`python -m router_agent.run submit`). The image needs `ALLOWED_MODELS` + the real `FIREWORKS_BASE_URL`/key (published at launch) to run end to end; the wiring + submit path are unit-tested offline.
+**Status:** entrypoint is live (`python -m tokengolf.run submit`). The image needs `ALLOWED_MODELS` + the real `FIREWORKS_BASE_URL`/key (published at launch) to run end to end; the wiring + submit path are unit-tested offline.

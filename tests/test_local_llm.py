@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from router_agent import local_llm, run
-from router_agent.config import CascadeConfig, TierConfig
-from router_agent.local_llm import build_local_tier
-from router_agent.schema import CostTracker, Reply, Tier
+from tokengolf import local_llm, run
+from tokengolf.config import CascadeConfig, TierConfig
+from tokengolf.local_llm import build_local_tier
+from tokengolf.schema import CostTracker, Reply, Tier
 
 
 class _FakeLLM:

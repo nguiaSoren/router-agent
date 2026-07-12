@@ -18,11 +18,11 @@ from __future__ import annotations
 import argparse
 import json
 
-from router_agent import confidence, tasks
-from router_agent.config import DEV_CONFIG
-from router_agent.run import build_tiers
-from router_agent.schema import CONF_KEY, CORRECT_KEY, CostTracker
-from router_agent.threshold import REMOTE_CORRECT_KEY, ece_of, fit_calibrator, pick_threshold
+from tokengolf import confidence, tasks
+from tokengolf.config import DEV_CONFIG
+from tokengolf.run import build_tiers
+from tokengolf.schema import CONF_KEY, CORRECT_KEY, CostTracker
+from tokengolf.threshold import REMOTE_CORRECT_KEY, ece_of, fit_calibrator, pick_threshold
 
 
 def load_mixed(n: int) -> list:

@@ -4,7 +4,7 @@ This package is the load-bearing reuse behind GAUGE (see `README.md`, rung 3). T
 five compute modules are copied verbatim from GAUGE's `gauge.calibration`, which in
 turn copied them verbatim from PARALLAX's `parallax.calibration`; only the
 intra-package import path differs on each hop (`parallax.` → `gauge.` →
-`router_agent.`). Nothing here is reimplemented — that honesty is the point: the
+`tokengolf.`). Nothing here is reimplemented — that honesty is the point: the
 calibrated/abstaining machinery already existed for verdicts, and GAUGE re-aims it
 at routes.
 

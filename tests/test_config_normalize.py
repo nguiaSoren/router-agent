@@ -1,7 +1,7 @@
 """ALLOWED_MODELS id normalization — the harness may inject bare slugs; the Fireworks API needs the
 full `accounts/fireworks/models/<slug>` (a bare slug 404s → every call fails). Regression guard."""
 
-from router_agent import config
+from tokengolf import config
 
 
 def test_normalize_bare_slug_gets_prefix():

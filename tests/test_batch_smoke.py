@@ -10,7 +10,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 
 from batch_smoke import _SYSTEM, build_requests  # noqa: E402
 
-from router_agent.schema import Task  # noqa: E402
+from tokengolf.schema import Task  # noqa: E402
 
 
 def _fake_tasks() -> list[Task]:

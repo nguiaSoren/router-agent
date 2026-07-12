@@ -52,4 +52,4 @@ ENV ROUTER_SMARTLOCAL=1 \
     ROUTER_FW_MODEL=kimi
 
 # Entrypoint = the harness contract; config (ALLOWED_MODELS / FIREWORKS_*) read from env at runtime.
-ENTRYPOINT ["python", "-m", "router_agent.run", "submit"]
+ENTRYPOINT ["python", "-m", "tokengolf.run", "submit"]

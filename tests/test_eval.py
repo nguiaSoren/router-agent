@@ -11,13 +11,13 @@ Covers:
 
 from __future__ import annotations
 
-from router_agent.eval import (
+from tokengolf.eval import (
     build_calibration_rows,
     calibrate_and_pick,
     evaluate_cascade,
     format_report,
 )
-from router_agent.schema import (
+from tokengolf.schema import (
     CONF_KEY,
     CORRECT_KEY,
     CallFn,

@@ -1,0 +1,9 @@
+# syntax=docker/dockerfile:1
+# :zero — the fast 0-token Hail Mary. FROM :local (all-local + deadline code), env-tuned for SPEED so
+# it fits the scorer's slow box within 10 min: single CoT call (no self-consistency votes), short
+# generations, a tighter time budget + wider headroom so no single generation can overrun the 10-min cap.
+FROM --platform=linux/amd64 soren19/tokengolf:local
+ENV ROUTER_MATH_SC_N=1 \
+    LOCAL_MAX_TOKENS=200 \
+    ROUTER_TIME_BUDGET=420 \
+    ROUTER_TIME_HEADROOM=45

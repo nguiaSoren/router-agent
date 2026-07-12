@@ -1,4 +1,4 @@
-"""router_agent — a calibrated, abstaining local↔remote model cascade.
+"""tokengolf — a calibrated, abstaining local↔remote model cascade.
 
 Per task: try the cheapest tier (local = free), estimate a calibrated confidence
 that its answer is correct, and escalate to a pricier remote tier only when the

@@ -41,9 +41,9 @@ import os
 from dataclasses import dataclass, field
 from typing import Callable
 
-from router_agent.config import TierConfig
-from router_agent.schema import CostTracker, Task, Tier
-from router_agent.tasks import (
+from tokengolf.config import TierConfig
+from tokengolf.schema import CostTracker, Task, Tier
+from tokengolf.tasks import (
     CATEGORIES,
     JUDGE_ONLY,
     check,
@@ -293,7 +293,7 @@ def load_bench_tasks(n_per: int) -> tuple[list[Task], dict[str, int]]:
     We call each loader directly (rather than `tasks.load_categories`) so a single
     failing loader skips only its category instead of zeroing the whole bench.
     """
-    from router_agent import tasks as T
+    from tokengolf import tasks as T
 
     per_loader: list[tuple[str, Callable[..., list[Task]]]] = [
         ("factual_knowledge", T.load_short_qa),
@@ -357,7 +357,7 @@ def _build_fireworks_tier(model_id: str, tracker: CostTracker, *, max_tokens: in
     `reasoning_effort="none"` disables hidden reasoning on the Fireworks reasoning models
     (minimax-m3, kimi-k2p7-code) — a ~20-34x output-token cut (measured). Left None = default
     (full reasoning)."""
-    from router_agent.providers import build_tier
+    from tokengolf.providers import build_tier
 
     cfg = TierConfig(
         name=f"fw:{model_id.split('/')[-1]}",

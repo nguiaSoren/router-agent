@@ -19,9 +19,9 @@ from __future__ import annotations
 
 import os
 
-from router_agent.batch import BatchRequest, submit_and_wait
-from router_agent.config import BASE_URLS, DEV_CONFIG
-from router_agent.schema import CostTracker, Task
+from tokengolf.batch import BatchRequest, submit_and_wait
+from tokengolf.config import BASE_URLS, DEV_CONFIG
+from tokengolf.schema import CostTracker, Task
 
 # Batch is half the synchronous price (gpt-5.4-nano std 0.20/1.25 → batch 0.10/0.625).
 _BATCH_PRICE_IN = 0.10
@@ -49,13 +49,13 @@ def build_requests(tasks: list[Task]) -> list[BatchRequest]:
 
 def load_tasks() -> list[Task]:
     """Load ~8 dev tasks (4 GSM8K math + 4 TriviaQA short-QA). Lazy via tasks.py (datasets)."""
-    from router_agent.tasks import load_gsm8k, load_short_qa
+    from tokengolf.tasks import load_gsm8k, load_short_qa
 
     return load_gsm8k(4) + load_short_qa(4)
 
 
 def main() -> int:
-    from router_agent.tasks import check
+    from tokengolf.tasks import check
 
     cfg = _remote_cfg()
     env_key = cfg.env_key or "AMD_OPENAI_API_KEY"

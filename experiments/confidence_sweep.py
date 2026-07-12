@@ -28,9 +28,9 @@ import argparse
 import json
 from collections import Counter
 
-from router_agent import tasks
-from router_agent.config import DEV_CONFIG
-from router_agent.schema import CostTracker
+from tokengolf import tasks
+from tokengolf.config import DEV_CONFIG
+from tokengolf.schema import CostTracker
 
 from experiments.confidence_separation import auc, coverage_accuracy
 
@@ -86,7 +86,7 @@ def main(argv: list[str] | None = None) -> int:
     if not sweep_ns:
         sweep_ns = [args.nmax]
 
-    from router_agent.providers import build_tier
+    from tokengolf.providers import build_tier
 
     tracker = CostTracker()
     local_cfg = next(c for c in DEV_CONFIG.tiers if c.is_local)

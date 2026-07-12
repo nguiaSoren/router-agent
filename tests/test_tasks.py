@@ -11,8 +11,8 @@ import importlib.util
 
 import pytest
 
-from router_agent.schema import Task
-from router_agent.tasks import (
+from tokengolf.schema import Task
+from tokengolf.tasks import (
     check,
     extract_answer,
     is_correct,
@@ -108,7 +108,7 @@ def test_qa_empty_pred_is_wrong():
 # ----------------------------------------------------------------- loaders (offline via fake)
 @pytest.mark.skipif(not _HAS_DATASETS, reason="datasets extra not installed")
 def test_load_gsm8k_with_fake(monkeypatch):
-    import router_agent.tasks as tasks_mod
+    import tokengolf.tasks as tasks_mod
 
     rows = [
         {"question": "Q1?", "answer": "work\n#### 42"},
@@ -131,7 +131,7 @@ def test_load_gsm8k_with_fake(monkeypatch):
 
 @pytest.mark.skipif(not _HAS_DATASETS, reason="datasets extra not installed")
 def test_load_short_qa_with_fake(monkeypatch):
-    import router_agent.tasks as tasks_mod
+    import tokengolf.tasks as tasks_mod
 
     rows = [
         {
@@ -169,7 +169,7 @@ def test_loader_n_cap_with_fake(monkeypatch):
     """`n` caps the count regardless of `datasets` (fake injected at the boundary)."""
     if not _HAS_DATASETS:
         pytest.skip("datasets extra not installed")
-    import router_agent.tasks as tasks_mod
+    import tokengolf.tasks as tasks_mod
 
     rows = [{"question": f"Q{i}?", "answer": f"#### {i}"} for i in range(100)]
     monkeypatch.setattr("datasets.load_dataset", lambda *a, **k: rows)

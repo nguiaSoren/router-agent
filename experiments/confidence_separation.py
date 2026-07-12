@@ -23,9 +23,9 @@ import argparse
 import json
 import re
 
-from router_agent import confidence, tasks
-from router_agent.config import DEV_CONFIG
-from router_agent.schema import CostTracker
+from tokengolf import confidence, tasks
+from tokengolf.config import DEV_CONFIG
+from tokengolf.schema import CostTracker
 
 _PROB = re.compile(r"(?<![\d.])(0?\.\d+|1(?:\.0+)?|0)(?![\d.])")
 
@@ -67,7 +67,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--out", default="/tmp/confidence_separation.json")
     args = p.parse_args(argv)
 
-    from router_agent.providers import build_tier
+    from tokengolf.providers import build_tier
 
     tracker = CostTracker()
     local_cfg = next(c for c in DEV_CONFIG.tiers if c.is_local)

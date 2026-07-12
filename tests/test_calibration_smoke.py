@@ -11,9 +11,9 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
-from router_agent.calibration import estimators as E
-from router_agent.calibration import nested
-from router_agent.calibration import recalibrate as R
+from tokengolf.calibration import estimators as E
+from tokengolf.calibration import nested
+from tokengolf.calibration import recalibrate as R
 
 
 def _rows(n: int = 60):

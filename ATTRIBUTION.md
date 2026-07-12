@@ -4,7 +4,7 @@ This project is a **recombination, not an invention**. The original seam is narr
 
 ## Reused verbatim
 
-- **`src/router_agent/calibration/`** — the confidence-calibration package (Platt + isotonic fits, debiased ECE, nested-CV, the selective/abstain policy). Copied verbatim from the GAUGE project's `gauge.calibration`, which in turn copied it verbatim from PARALLAX's `parallax.calibration`. The **only** edit on each hop is the intra-package import path. Pure stdlib (no numpy/sklearn). MIT throughout.
+- **`src/tokengolf/calibration/`** — the confidence-calibration package (Platt + isotonic fits, debiased ECE, nested-CV, the selective/abstain policy). Copied verbatim from the GAUGE project's `gauge.calibration`, which in turn copied it verbatim from PARALLAX's `parallax.calibration`. The **only** edit on each hop is the intra-package import path. Pure stdlib (no numpy/sklearn). MIT throughout.
 
 ## Mechanisms we build on (not ours)
 

@@ -22,7 +22,7 @@ A Track-1 agent that answers tasks across 8 capability categories (factual, math
 ## Build & run
 ```bash
 # Judging VM is linux/amd64. From the repo root — :smartlocal is the submit image (bakes the local GGUF):
-docker buildx build --platform linux/amd64 -f docker/Dockerfile -t <registry>/router-agent:smartlocal --push .
+docker buildx build --platform linux/amd64 -f docker/Dockerfile -t <registry>/tokengolf:smartlocal --push .
 
 # Local smoke:
 mkdir -p input output && echo '[{"task_id":"t1","prompt":"What is 2+2?"}]' > input/tasks.json
@@ -31,7 +31,7 @@ docker run --rm \
   -e FIREWORKS_BASE_URL="https://api.fireworks.ai/inference/v1" \
   -e ALLOWED_MODELS="accounts/fireworks/models/kimi-k2p7-code" \
   -v "$PWD/input:/input" -v "$PWD/output:/output" \
-  <registry>/router-agent:smartlocal
+  <registry>/tokengolf:smartlocal
 cat output/results.json
 ```
 The lean all-remote fallback (no local tier) is `docker/Dockerfile.baseline` → `:kimi`.
@@ -45,7 +45,7 @@ The lean all-remote fallback (no local tier) is `docker/Dockerfile.baseline` →
 - `ROUTER_SC_N`, `ROUTER_MAX_TOKENS`, `ROUTER_TAU`: self-consistency samples / output cap / escalation threshold.
 
 ## Layout
-`src/router_agent/`: `run.py` (`submit` entrypoint + smartlocal routing), `heuristics.py` (the $0 deterministic tiers: NER regex, `solve_math`, `solve_code`), `cascade.py` (confidence cascade), `confidence.py` (self-consistency), `local_llm.py` (CPU GGUF free tier), `providers.py` (Fireworks seam), `threshold.py`/`calibration/` (τ + calibration), `tasks.py` (8-category dev sets + checkers). `experiments/`: eval + calibration harnesses. `docker/`: the amd64 images. `submission/deck/`: the pitch deck + brand assets.
+`src/tokengolf/`: `run.py` (`submit` entrypoint + smartlocal routing), `heuristics.py` (the $0 deterministic tiers: NER regex, `solve_math`, `solve_code`), `cascade.py` (confidence cascade), `confidence.py` (self-consistency), `local_llm.py` (CPU GGUF free tier), `providers.py` (Fireworks seam), `threshold.py`/`calibration/` (τ + calibration), `tasks.py` (8-category dev sets + checkers). `experiments/`: eval + calibration harnesses. `docker/`: the amd64 images. `submission/deck/`: the pitch deck + brand assets.
 
 ## Development
 ```bash

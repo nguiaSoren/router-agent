@@ -11,8 +11,8 @@ import importlib.util
 
 import pytest
 
-from router_agent import tasks as T
-from router_agent.schema import Task
+from tokengolf import tasks as T
+from tokengolf.schema import Task
 
 _HAS_DATASETS = importlib.util.find_spec("datasets") is not None
 

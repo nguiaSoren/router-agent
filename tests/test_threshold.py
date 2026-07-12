@@ -7,8 +7,8 @@ the risk–coverage coverage is non-increasing, and the picker returns the cheap
 
 from __future__ import annotations
 
-from router_agent.schema import CONF_KEY, CORRECT_KEY
-from router_agent.threshold import (
+from tokengolf.schema import CONF_KEY, CORRECT_KEY
+from tokengolf.threshold import (
     REMOTE_CORRECT_KEY,
     ece_of,
     fit_calibrator,

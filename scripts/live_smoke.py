@@ -23,8 +23,8 @@ from __future__ import annotations
 
 import argparse
 
-from router_agent.config import DEV_CONFIG
-from router_agent.schema import CostTracker
+from tokengolf.config import DEV_CONFIG
+from tokengolf.schema import CostTracker
 
 _REMOTE_CEILING_USD = 0.25  # hard kill-switch for this smoke — protects dev credits
 
@@ -49,7 +49,7 @@ def list_models() -> int:
     """List the remote provider's model ids so you can pick/verify DEV_REMOTE_MODEL_ID (L6)."""
     import openai
 
-    from router_agent.providers import _resolve_api_key, _resolve_base_url
+    from tokengolf.providers import _resolve_api_key, _resolve_base_url
 
     cfg = _remote_cfg()
     client = openai.OpenAI(base_url=_resolve_base_url(cfg), api_key=_resolve_api_key(cfg))
@@ -62,7 +62,7 @@ def list_models() -> int:
 
 
 def stage_local(max_tokens: int) -> bool:
-    from router_agent.providers import build_tier
+    from tokengolf.providers import build_tier
 
     cfg = _local_cfg()
     print(f"\n[local seam] tier={cfg.name} provider={cfg.provider} model={cfg.model_id!r}")
@@ -87,7 +87,7 @@ def stage_local(max_tokens: int) -> bool:
 
 
 def stage_remote(max_tokens: int) -> bool:
-    from router_agent.providers import build_tier
+    from tokengolf.providers import build_tier
 
     cfg = _remote_cfg()
     print(f"\n[remote seam] tier={cfg.name} provider={cfg.provider} model={cfg.model_id!r}")
@@ -119,9 +119,9 @@ def stage_cascade(max_tokens: int) -> bool:
     """Tiny end-to-end: route 2 math tasks. With no calibrator the local gate is uncalibrated, so
     it escalates (no silent promotion) — this exercises local self-consistency (free) + the remote
     fallback through the real cascade."""
-    from router_agent.eval import evaluate_cascade, format_report
-    from router_agent.run import build_confidence_fns, build_tiers
-    from router_agent.schema import Task
+    from tokengolf.eval import evaluate_cascade, format_report
+    from tokengolf.run import build_confidence_fns, build_tiers
+    from tokengolf.schema import Task
 
     print("\n[end-to-end cascade] 2 math tasks, no calibrator → escalate-all (preview)")
     tasks = [

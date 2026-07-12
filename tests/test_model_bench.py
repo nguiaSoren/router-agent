@@ -26,7 +26,7 @@ from experiments.model_bench import (
     rank_per_category,
     score_answer,
 )
-from router_agent.schema import Reply, Task, Tier
+from tokengolf.schema import Reply, Task, Tier
 
 
 # ----------------------------------------------------------------- fakes

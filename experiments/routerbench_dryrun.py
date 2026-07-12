@@ -10,8 +10,8 @@ cheap model's correctness lets us answer most queries locally and escalate only 
 *fraction* to the remote — beating both trivial baselines (always-local, always-remote).
 
 Pipeline exercised (imported, not reimplemented):
-  router_agent.threshold : fit_calibrator, risk_coverage_curve, pick_threshold, ece_of
-  router_agent.schema    : CONF_KEY ("judge_confidence"), CORRECT_KEY ("correct")
+  tokengolf.threshold : fit_calibrator, risk_coverage_curve, pick_threshold, ece_of
+  tokengolf.schema    : CONF_KEY ("judge_confidence"), CORRECT_KEY ("correct")
 
 Confidence signal: a lightweight, hand-rolled (pure-stdlib) logistic regression that
 predicts P(cheap-correct) from two cheap features — prompt length + benchmark-family
@@ -35,8 +35,8 @@ import math
 import random
 from dataclasses import dataclass, field
 
-from router_agent.schema import CONF_KEY, CORRECT_KEY
-from router_agent.threshold import (
+from tokengolf.schema import CONF_KEY, CORRECT_KEY
+from tokengolf.threshold import (
     REMOTE_CORRECT_KEY,
     ece_of,
     fit_calibrator,

@@ -1,0 +1,13 @@
+# syntax=docker/dockerfile:1
+# :local — the 0-token winning bet. Ranked by FEWEST tokens, the only way to win is 0 scored tokens.
+# FROM :smartlocal (baked Qwen GGUF + $0 deterministic tiers + the hard-deadline watchdog code) and
+# flip on ROUTER_ALL_LOCAL=1: answer EVERYTHING on the local model + $0 solvers, never call Fireworks.
+#
+# The all-local logic lives INSIDE run.py's `if ROUTER_SMARTLOCAL:` branch (all_local is a sub-flag),
+# so KEEP ROUTER_SMARTLOCAL=1 (inherited from the base) and ADD ROUTER_ALL_LOCAL=1 — do NOT unset it.
+# Tuned all-local knobs (TIME_BUDGET=480, MATH_SC_N=3) are code defaults in run.py. :zero builds FROM this.
+#
+# Build (base :smartlocal must be pushed first — buildx pulls it):
+#   docker buildx build --platform linux/amd64 -f docker/Dockerfile.local -t <registry>/tokengolf:local --push .
+FROM --platform=linux/amd64 soren19/tokengolf:smartlocal
+ENV ROUTER_ALL_LOCAL=1

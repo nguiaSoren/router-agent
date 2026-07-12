@@ -1,5 +1,5 @@
 [project]
-name = "router-agent"
+name = "tokengolf"
 version = "0.0.1"
 description = "Hybrid token-efficient routing agent — a calibrated, abstaining local↔remote model cascade (AMD ACT II, Track 1)."
 readme = "README.md"
@@ -23,7 +23,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/router_agent"]
+packages = ["src/tokengolf"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src", "."]  # "." → the experiments/ package is importable in tests

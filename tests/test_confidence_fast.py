@@ -6,8 +6,8 @@ Covers `verbalized_confidence` (1-call self-report) and `length_confidence`
 
 from __future__ import annotations
 
-from router_agent.confidence import length_confidence, verbalized_confidence
-from router_agent.schema import CallFn, Reply, Task
+from tokengolf.confidence import length_confidence, verbalized_confidence
+from tokengolf.schema import CallFn, Reply, Task
 
 
 def _scripted(texts: list[str]) -> CallFn:

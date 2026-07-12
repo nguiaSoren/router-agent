@@ -16,7 +16,7 @@ import argparse
 import json
 import os
 
-from router_agent import heuristics, local_llm, repair, tasks
+from tokengolf import heuristics, local_llm, repair, tasks
 
 _SYS = ("You are precise. Answer only, as briefly as the task allows, in the exact format asked. "
         "No preamble, no explanation, no markdown code fences unless the answer is code.")

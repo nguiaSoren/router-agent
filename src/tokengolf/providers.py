@@ -17,8 +17,8 @@ from __future__ import annotations
 import os
 import time
 
-from router_agent.config import BASE_URLS, TierConfig
-from router_agent.schema import CostTracker, Reply, Tier
+from tokengolf.config import BASE_URLS, TierConfig
+from tokengolf.schema import CostTracker, Reply, Tier
 
 # Small exponential-backoff base (seconds); kept tiny so the default suite never sleeps on it.
 _BACKOFF_BASE = 0.5
@@ -185,7 +185,7 @@ def live_smoke(cfg: TierConfig, *, max_tokens: int = 64) -> Reply:
 if __name__ == "__main__":  # pragma: no cover - manual live probe
     import sys
 
-    from router_agent.config import DEV_CONFIG
+    from tokengolf.config import DEV_CONFIG
 
     idx = int(sys.argv[1]) if len(sys.argv) > 1 else 0
     cfg = DEV_CONFIG.tiers[idx]

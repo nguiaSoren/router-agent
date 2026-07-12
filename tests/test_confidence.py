@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from router_agent.confidence import mean_combine, self_consistency, verifier
-from router_agent.schema import CallFn, Reply, Task
+from tokengolf.confidence import mean_combine, self_consistency, verifier
+from tokengolf.schema import CallFn, Reply, Task
 
 
 def _scripted(texts: list[str]) -> CallFn:

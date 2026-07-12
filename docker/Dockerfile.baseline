@@ -9,7 +9,7 @@
 # different ROUTER_FW_MODEL. The local-cascade Dockerfile remains for the explored option.
 #
 # Build (judging VM is amd64):
-#   docker buildx build --platform linux/amd64 -f docker/Dockerfile.baseline -t <reg>/router-agent:latest --push .
+#   docker buildx build --platform linux/amd64 -f docker/Dockerfile.baseline -t <reg>/tokengolf:latest --push .
 FROM --platform=linux/amd64 python:3.11-slim
 
 ENV PYTHONUNBUFFERED=1 \
@@ -35,4 +35,4 @@ RUN useradd --create-home --uid 1001 runner \
     && mkdir -p /input /output && chown -R runner:runner /app /input /output
 USER runner
 
-ENTRYPOINT ["python", "-m", "router_agent.run", "submit"]
+ENTRYPOINT ["python", "-m", "tokengolf.run", "submit"]

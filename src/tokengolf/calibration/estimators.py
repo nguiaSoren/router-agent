@@ -30,7 +30,7 @@ import math
 import random
 from typing import Callable
 
-from router_agent.calibration.recalibrate import ece
+from tokengolf.calibration.recalibrate import ece
 
 
 # ---------------------------------------------------------------- equal-mass bins
