@@ -79,6 +79,20 @@ DEV_CONFIG = CascadeConfig(
 
 
 # ---- SCORING config: built from the harness-injected env at eval time (Track 1 contract). ----
+def _normalize_fireworks_id(mid: str) -> str:
+    """Fireworks needs the full `accounts/fireworks/models/<slug>`; the harness may inject a bare slug
+    (the launch notes list the models as `minimax-m3` / `kimi-k2p7-code`). A bare slug 404s
+    (`model_not_found`) → every call fails → zero answers. Prepend the prefix when it's missing so the
+    id is always callable, whether the harness passes a slug or a full path (full paths pass through)."""
+    mid = mid.strip()
+    return mid if "/" in mid else f"accounts/fireworks/models/{mid}"
+
+
+def _allowed_models_from_env() -> list[str]:
+    """Parse ALLOWED_MODELS (comma-separated), normalized to full Fireworks ids."""
+    return [_normalize_fireworks_id(m) for m in os.environ.get("ALLOWED_MODELS", "").split(",") if m.strip()]
+
+
 def scoring_config_from_env() -> CascadeConfig:
     """Build the submission cascade from the harness env vars (Participant Guide, Track 1).
 
@@ -92,7 +106,7 @@ def scoring_config_from_env() -> CascadeConfig:
     default 1 — on Fireworks each sample COSTS tokens, unlike a free local model), ROUTER_TAU
     (escalation threshold for non-final tiers), ROUTER_FLOOR (accuracy floor).
     """
-    allowed = [m.strip() for m in os.environ.get("ALLOWED_MODELS", "").split(",") if m.strip()]
+    allowed = _allowed_models_from_env()
     if not allowed:
         raise ValueError(
             "ALLOWED_MODELS is empty — the harness injects it at eval time; set it "
@@ -130,7 +144,7 @@ def submission_config_from_env() -> CascadeConfig:
     local tier (CPU); the single Fireworks call handles escalations. Picks `minimax-m3` from
     ALLOWED_MODELS when present (capable, concise, general), else the first allowed model.
     """
-    allowed = [m.strip() for m in os.environ.get("ALLOWED_MODELS", "").split(",") if m.strip()]
+    allowed = _allowed_models_from_env()
     if not allowed:
         raise ValueError(
             "ALLOWED_MODELS is empty — set it (comma-separated Fireworks ids) to test locally; "

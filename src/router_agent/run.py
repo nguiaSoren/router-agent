@@ -304,21 +304,43 @@ def cmd_route(args: argparse.Namespace, config: CascadeConfig | None = None) -> 
 
 # ----------------------------------------------------------------- subcommand: submit (the harness contract)
 def read_input_tasks(path: str) -> list[Task]:
-    """Read the harness `/input/tasks.json` — a JSON array of {task_id, prompt}.
+    """Read the harness `/input/tasks.json` — tolerant of shape drift so one odd task can't lose the batch.
+
+    The documented contract is a JSON array of `{task_id, prompt}`. We additionally survive: a dict
+    wrapper (`{"tasks":[...]}` / `data` / `items` / `inputs` / `examples`), a dict keyed by task_id,
+    alternate id keys (`id`/`taskId`/`_id`), and alternate prompt keys (`input`/`question`/`text`/
+    `content`). A missing/oddly-typed field never raises — the task keeps its id (so the skeleton stays
+    complete → every task_id reaches results.json). Only a wholly unparseable file raises (caught upstream).
 
     Submission tasks carry NO kind/gold (the category is implicit in the prompt; scoring is by
     LLM-judge). We default kind='qa' (generic answer normalization) and gold='' (unused here)."""
     with open(path, encoding="utf-8") as fh:
         raw = json.load(fh)
+    # 1) normalize any container shape → a list of per-task objects
+    if isinstance(raw, dict):
+        for key in ("tasks", "data", "items", "inputs", "examples"):
+            if isinstance(raw.get(key), list):
+                raw = raw[key]
+                break
+        else:  # a dict keyed by task_id → [{"task_id": k, ...v}]
+            raw = [{"task_id": k, **(v if isinstance(v, dict) else {"prompt": v})}
+                   for k, v in raw.items()]
+    if not isinstance(raw, list):
+        raw = [raw]
+    # 2) extract (id, prompt) per task — never raise on a single malformed entry
+    _ID_KEYS = ("task_id", "id", "taskId", "_id")
+    _PROMPT_KEYS = ("prompt", "input", "question", "text", "content", "task")
     tasks: list[Task] = []
     for i, obj in enumerate(raw):
-        tasks.append(Task(
-            id=str(obj.get("task_id", i)),
-            prompt=obj["prompt"],
-            gold="",
-            kind=obj.get("kind", "qa"),
-            meta={},
-        ))
+        if not isinstance(obj, dict):
+            obj = {"prompt": obj}
+        tid = next((obj[k] for k in _ID_KEYS if k in obj), i)
+        prompt = next((obj[k] for k in _PROMPT_KEYS if isinstance(obj.get(k), str)), None)
+        if prompt is None:  # last resort: any text-ish non-id field, else empty
+            prompt = next((str(v) for k, v in obj.items()
+                           if k not in _ID_KEYS and isinstance(v, (str, int, float))), "")
+        tasks.append(Task(id=str(tid), prompt=str(prompt), gold="",
+                          kind=str(obj.get("kind", "qa")), meta={}))
     return tasks
 
 
@@ -370,6 +392,8 @@ def cmd_submit(args: argparse.Namespace, config: CascadeConfig | None = None) ->
         write_output_results(args.output, [])
         return {"n": 0, "mode": "input-error", "scored_tokens": 0, "local_answered": 0}
 
+    print(f"submit: read {len(tasks)} tasks from {args.input}", file=sys.stderr)
+
     # 2) pre-fill a COMPLETE skeleton and write it NOW → results.json is valid + complete from here on,
     #    so any later crash/timeout still yields a scorable file (partial credit, never zero).
     answers: list[dict] = [{"task_id": t.id, "answer": ""} for t in tasks]
@@ -411,7 +435,7 @@ def cmd_submit(args: argparse.Namespace, config: CascadeConfig | None = None) ->
                             ans = math_via_python(t.prompt, local_tier)
                     if ans is None:
                         ans = heuristics.solve_code(t.prompt)
-                    if ans is None and (allow_local or all_local):
+                    if ans is None and allow_local:                 # local only within the time budget
                         if heuristics.looks_like_sentiment(t.prompt):
                             r = _guarded_call(local_tier, _LOCAL_SENTIMENT_SYSTEM, t.prompt)
                             ans = r.text if r else None
@@ -420,8 +444,10 @@ def cmd_submit(args: argparse.Namespace, config: CascadeConfig | None = None) ->
                             ans = r.text if r else None
                     if ans is None:                                 # fallback
                         if all_local:                               # 0-token play → local model, no Fireworks
-                            r = _guarded_call(local_tier, _LOCAL_GENERAL_SYSTEM, t.prompt)
-                            ans = r.text if r else ""
+                            if allow_local:                         # within budget → answer locally
+                                r = _guarded_call(local_tier, _LOCAL_GENERAL_SYSTEM, t.prompt)
+                                ans = r.text if r else ""
+                            # past budget → leave blank for the end-fill (avoids the 10-min-cap kill)
                         else:                                       # else → one Fireworks call
                             reply = _guarded_call(fw_tier, _SUBMIT_SYSTEM, t.prompt)
                             if reply is not None:
@@ -477,10 +503,14 @@ def cmd_submit(args: argparse.Namespace, config: CascadeConfig | None = None) ->
     except Exception as exc:  # noqa: BLE001 — never crash the container; a partial results.json beats zero
         print(f"submit: fatal routing error, kept partial results: {exc}", file=sys.stderr)
 
+    real_answered = len([a for a in answers if a["answer"]])           # honest count (pre-fill)
+    for a in answers:                       # never ship a blank — a blank answer can read as a missing task
+        if not a["answer"]:
+            a["answer"] = "unknown"
     write_output_results(args.output, answers)                        # final atomic write
     print(f"submit: {len(answers)} answers → {args.output}  | mode={mode}")
     print(f"  scored (remote) tokens: {scored_tokens}  ({scored_tokens / max(1, len(answers)):.0f}/task)"
-          f"  | answered: {len([a for a in answers if a['answer']])}/{len(answers)}")
+          f"  | answered: {real_answered}/{len(answers)}")
     return {"n": len(answers), "mode": mode, "scored_tokens": scored_tokens,
             "local_answered": local_answered}
 

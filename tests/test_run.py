@@ -127,6 +127,51 @@ def test_submit_reads_input_writes_output(monkeypatch, tmp_path):
     assert results == [{"task_id": "t1", "answer": "ans:hi"}, {"task_id": "t2", "answer": "ans:yo"}]
 
 
+def test_read_input_tasks_tolerates_shape_drift():
+    # Regression for MISSING_TASKS: one malformed task (no "prompt") must NOT lose the whole batch,
+    # and common container shapes (dict wrapper / dict-keyed / alt keys) must all parse.
+    import tempfile
+    def _w(obj):
+        f = tempfile.NamedTemporaryFile("w", suffix=".json", delete=False)
+        json.dump(obj, f)
+        f.close()
+        return f.name
+
+    # a bad task keeps its id (skeleton stays complete → every task_id reaches results.json)
+    ts = run.read_input_tasks(_w([{"task_id": "t1", "prompt": "A?"}, {"task_id": "t2"}]))
+    assert [t.id for t in ts] == ["t1", "t2"]
+
+    for shape in (
+        {"tasks": [{"task_id": "t1", "prompt": "A?"}, {"task_id": "t2", "prompt": "B?"}]},  # wrapper
+        {"t1": {"prompt": "A?"}, "t2": {"prompt": "B?"}},                                   # dict-keyed
+        [{"id": "t1", "input": "A?"}, {"id": "t2", "question": "B?"}],                      # alt keys
+    ):
+        ts = run.read_input_tasks(_w(shape))
+        assert [t.id for t in ts] == ["t1", "t2"]
+        assert all(t.prompt for t in ts)
+
+
+def test_submit_never_ships_blank_answer(monkeypatch, tmp_path):
+    # A failed call leaves a blank skeleton answer; the end-fill must replace it so the scorer never
+    # sees an empty answer (which can read as a missing task).
+    from router_agent.config import CascadeConfig
+
+    def boom(system: str, user: str) -> Reply:
+        raise RuntimeError("provider down")
+
+    tier = Tier(name="fw", call=boom, price_in=0.0, price_out=0.0, is_local=False)
+    monkeypatch.setattr(run, "build_tiers", lambda config, tracker: [tier])
+    inp = tmp_path / "tasks.json"
+    inp.write_text(json.dumps([{"task_id": "t1", "prompt": "hi"}, {"task_id": "t2", "prompt": "yo"}]))
+    outp = tmp_path / "results.json"
+    args = argparse.Namespace(input=str(inp), output=str(outp), calibrator=None)
+
+    run.cmd_submit(args, config=CascadeConfig(tiers=[]))
+    results = json.loads(outp.read_text())
+    assert [r["task_id"] for r in results] == ["t1", "t2"]  # all task_ids present
+    assert all(r["answer"] for r in results)                # none blank (filled with "unknown")
+
+
 def test_submit_smartlocal_routes_by_category(monkeypatch, tmp_path):
     # sentiment/NER prompts → free local (0 scored tokens); everything else → Fireworks.
     from router_agent.config import CascadeConfig
