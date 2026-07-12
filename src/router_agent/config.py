@@ -175,7 +175,7 @@ def submission_config_from_env() -> CascadeConfig:
         self_consistency_n=int(os.environ.get("ROUTER_SC_N", "2")),  # local samples (free, but CPU — N=2 for the 30s/req margin)
         self_consistency_temp=float(os.environ.get("ROUTER_SC_TEMP", "0.7")),
         accuracy_floor=float(os.environ.get("ROUTER_FLOOR", "0.0")),
-        local_max_tokens=int(os.environ.get("LOCAL_MAX_TOKENS", "512")),
+        local_max_tokens=int(os.environ.get("LOCAL_MAX_TOKENS", "400")),  # CoT needs ~400; caps rambling → faster/task
         remote_max_tokens=int(os.environ.get("ROUTER_MAX_TOKENS", "512")),
         budget_ceiling_usd=None,
     )

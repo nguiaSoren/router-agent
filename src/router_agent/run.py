@@ -95,15 +95,23 @@ def _extract_final_number(text: str) -> str | None:
     return str(int(f)) if f.is_integer() else str(f)
 
 
-def math_via_cot_sc(prompt: str, local_tier, n: int = 5) -> str | None:
-    """$0 math for a word problem: draw n step-by-step (chain-of-thought) samples from the LOCAL model
-    and MAJORITY-VOTE the final number (self-consistency). Measured to fix the 3B's one weak spot — on
-    GSM8K a single concise call mistranslates stably, but sampled CoT + vote recovers the right answer
-    (baseline ~1/4 → CoT+SC ~4/4 on the probe). Zero scored tokens. None if no numeric vote lands."""
+def math_via_cot_sc(prompt: str, local_tier, n: int = 3, deadline: float | None = None) -> str | None:
+    """$0 math for a word problem: draw up to n step-by-step (chain-of-thought) samples from the LOCAL
+    model and MAJORITY-VOTE the final number (self-consistency). Measured to fix the 3B's one weak spot —
+    on GSM8K a single concise call mistranslates stably, but sampled CoT + vote recovers the right answer
+    (baseline ~1/4 → CoT+SC ~4/4 on the probe). Zero scored tokens.
+
+    `deadline` (a time.monotonic() value) hard-caps the vote loop: we stop drawing samples once it passes,
+    so a math task near the time budget can never overrun the 10-min harness cap (that TIMEOUTs the run).
+    Returns the majority numeric string, or None if no vote lands."""
     from collections import Counter
-    votes = [num for _ in range(max(1, n))
-             if (r := _guarded_call(local_tier, _LOCAL_MATH_COT_SYSTEM, prompt)) is not None
-             and (num := _extract_final_number(r.text)) is not None]
+    votes: list[str] = []
+    for _ in range(max(1, n)):
+        if deadline is not None and time.monotonic() >= deadline:
+            break
+        r = _guarded_call(local_tier, _LOCAL_MATH_COT_SYSTEM, prompt)
+        if r is not None and (num := _extract_final_number(r.text)) is not None:
+            votes.append(num)
     return Counter(votes).most_common(1)[0][0] if votes else None
 
 
@@ -456,17 +464,22 @@ def cmd_submit(args: argparse.Namespace, config: CascadeConfig | None = None) ->
             local_tier = next((t for t in tiers if t.is_local), None)
             fw_tier = next((t for t in tiers if not t.is_local), tiers[-1])
             t0 = time.monotonic()
-            budget = float(os.environ.get("ROUTER_TIME_BUDGET", "540"))   # 9 min (hard harness cap is 10)
-            local_cutoff = budget * 0.85
+            # Hard wall-clock deadline: the container MUST exit before the 10-min harness cap (overrun =
+            # TIMEOUT = zero). We stop starting local work once within `headroom` of the deadline and
+            # end-fill the rest, and CoT+SC gets the deadline so its vote loop can't overrun either.
+            budget = float(os.environ.get("ROUTER_TIME_BUDGET", "480"))   # exit by 8m (hard cap 10m; last
+            deadline = t0 + budget
+            headroom = float(os.environ.get("ROUTER_TIME_HEADROOM", "18"))  # keep ≥1 local call of margin
             remote_calls = 0
             for i, t in enumerate(tasks):
                 try:
-                    allow_local = local_tier is not None and (time.monotonic() - t0) < local_cutoff
+                    allow_local = local_tier is not None and (deadline - time.monotonic()) > headroom
                     ans = None
                     if heuristics.looks_like_math(t.prompt):
                         ans = heuristics.solve_math(t.prompt)             # exact arithmetic/% first ($0)
                         if ans is None and allow_local and all_local:     # word problem → CoT + self-consistency ($0)
-                            ans = math_via_cot_sc(t.prompt, local_tier, n=int(os.environ.get("ROUTER_MATH_SC_N", "5")))
+                            ans = math_via_cot_sc(t.prompt, local_tier,
+                                                  n=int(os.environ.get("ROUTER_MATH_SC_N", "3")), deadline=deadline)
                         elif ans is None and allow_local and os.environ.get("ROUTER_MATH_PY"):
                             ans = math_via_python(t.prompt, local_tier)   # dormant alt (measured weaker)
                     if ans is None:
