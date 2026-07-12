@@ -72,6 +72,40 @@ _LOCAL_GENERAL_SYSTEM = (
     "If a length is requested (e.g. one sentence), obey it."
 )  # the 3B dumps _SUBMIT_SYSTEM's multi-format menu verbatim; this single-instruction prompt keeps it clean.
 
+_LOCAL_MATH_COT_SYSTEM = (
+    "You are a careful math solver. Solve the problem step by step, showing each arithmetic operation "
+    "explicitly. Then on the LAST line write 'ANSWER: <number>' with only the final number — no units, "
+    "no words, no currency sign."
+)  # chain-of-thought: the 3B mistranslates a word problem in ONE concise shot, but reasons correctly
+# when it shows the steps — and self-consistency (majority vote over samples) filters the stray misread.
+
+
+def _extract_final_number(text: str) -> str | None:
+    """Pull the final numeric answer from a chain-of-thought reply: the 'ANSWER: <n>' line if present,
+    else the last number in the text. Returns a normalized numeric string (18.0 → '18') or None."""
+    m = re.findall(r"ANSWER:\s*\$?(-?[\d,]+(?:\.\d+)?)", text, re.I)
+    if not m:
+        m = re.findall(r"-?\$?([\d,]+(?:\.\d+)?)", text)
+    if not m:
+        return None
+    try:
+        f = float(m[-1].replace(",", "").replace("$", ""))
+    except ValueError:
+        return None
+    return str(int(f)) if f.is_integer() else str(f)
+
+
+def math_via_cot_sc(prompt: str, local_tier, n: int = 5) -> str | None:
+    """$0 math for a word problem: draw n step-by-step (chain-of-thought) samples from the LOCAL model
+    and MAJORITY-VOTE the final number (self-consistency). Measured to fix the 3B's one weak spot — on
+    GSM8K a single concise call mistranslates stably, but sampled CoT + vote recovers the right answer
+    (baseline ~1/4 → CoT+SC ~4/4 on the probe). Zero scored tokens. None if no numeric vote lands."""
+    from collections import Counter
+    votes = [num for _ in range(max(1, n))
+             if (r := _guarded_call(local_tier, _LOCAL_MATH_COT_SYSTEM, prompt)) is not None
+             and (num := _extract_final_number(r.text)) is not None]
+    return Counter(votes).most_common(1)[0][0] if votes else None
+
 
 def math_via_python(prompt: str, local_tier, n: int = 2) -> str | None:
     """$0 math for a word problem: the LOCAL model translates it to Python, we execute it in the
@@ -430,9 +464,11 @@ def cmd_submit(args: argparse.Namespace, config: CascadeConfig | None = None) ->
                     allow_local = local_tier is not None and (time.monotonic() - t0) < local_cutoff
                     ans = None
                     if heuristics.looks_like_math(t.prompt):
-                        ans = heuristics.solve_math(t.prompt)
-                        if ans is None and allow_local and (all_local or os.environ.get("ROUTER_MATH_PY")):
-                            ans = math_via_python(t.prompt, local_tier)
+                        ans = heuristics.solve_math(t.prompt)             # exact arithmetic/% first ($0)
+                        if ans is None and allow_local and all_local:     # word problem → CoT + self-consistency ($0)
+                            ans = math_via_cot_sc(t.prompt, local_tier, n=int(os.environ.get("ROUTER_MATH_SC_N", "5")))
+                        elif ans is None and allow_local and os.environ.get("ROUTER_MATH_PY"):
+                            ans = math_via_python(t.prompt, local_tier)   # dormant alt (measured weaker)
                     if ans is None:
                         ans = heuristics.solve_code(t.prompt)
                     if ans is None and allow_local:                 # local only within the time budget

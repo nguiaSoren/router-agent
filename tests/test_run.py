@@ -151,6 +151,28 @@ def test_read_input_tasks_tolerates_shape_drift():
         assert all(t.prompt for t in ts)
 
 
+def test_extract_final_number():
+    assert run._extract_final_number("steps...\nANSWER: 42") == "42"
+    assert run._extract_final_number("ANSWER: $70,000") == "70000"
+    assert run._extract_final_number("so the total is 18.0 eggs") == "18"
+    assert run._extract_final_number("2.5 hours") == "2.5"
+    assert run._extract_final_number("no numbers here") is None
+
+
+def test_math_via_cot_sc_majority_vote():
+    # Three samples say 26, two say 46 → majority 26 (self-consistency filters the stray misread).
+    seq = ["work... ANSWER: 26", "ANSWER: 46", "steps ANSWER: 26", "ANSWER: 26", "bad ANSWER: 46"]
+    calls = {"i": 0}
+
+    def fake_call(system, user):
+        i = calls["i"]
+        calls["i"] += 1
+        return Reply(text=seq[i], in_tok=1, out_tok=1)
+
+    tier = Tier(name="local", call=fake_call, price_in=0.0, price_out=0.0, is_local=True)
+    assert run.math_via_cot_sc("6 notebooks at $4, change from $50?", tier, n=5) == "26"
+
+
 def test_submit_never_ships_blank_answer(monkeypatch, tmp_path):
     # A failed call leaves a blank skeleton answer; the end-fill must replace it so the scorer never
     # sees an empty answer (which can read as a missing task).
